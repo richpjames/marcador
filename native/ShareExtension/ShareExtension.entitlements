@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- macOS always sandboxes an app extension. Without the outbound-network
+       entitlement the POST is denied silently and the share simply never
+       arrives, with nothing in the UI to say why. iOS does not need this, which
+       is why it is scoped to the macOS SDK in add-share-extension.rb. -->
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>

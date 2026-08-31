@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    container_name: marcador
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Coolify injects these from its own secrets UI; the compose file only
+      # names them so a plain `docker compose up` picks them out of .env too.
+      MARCADOR_PASSWORD: ${MARCADOR_PASSWORD:?set MARCADOR_PASSWORD}
+      MARCADOR_TOKEN: ${MARCADOR_TOKEN:?set MARCADOR_TOKEN}
+      MARCADOR_SECRET: ${MARCADOR_SECRET:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
+      DATABASE_PATH: /app/data/marcador.db
+      TZ: Europe/Madrid
+    volumes:
+      # The whole app is one SQLite file. This volume is the entire backup story.
+      - marcador-data:/app/data
+
+volumes:
+  marcador-data:

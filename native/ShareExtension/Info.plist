@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>$(DEVELOPMENT_LANGUAGE)</string>
+  <key>CFBundleDisplayName</key>
+  <string>marcador</string>
+  <!-- macOS reads CFBundleName, not CFBundleDisplayName, for the row in
+       Settings > Login Items & Extensions > Sharing. Set both. -->
+  <key>CFBundleName</key>
+  <string>marcador</string>
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundleIdentifier</key>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundlePackageType</key>
+  <string>XPC!</string>
+  <!-- Both must match the containing app exactly or the archive is rejected. -->
+  <key>CFBundleShortVersionString</key>
+  <string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key>
+  <string>$(CURRENT_PROJECT_VERSION)</string>
+
+  <!-- Server address and token, substituted from Config.xcconfig at build time
+       so no secret is committed. See native/ShareExtension/Config.xcconfig.example. -->
+  <key>MarcadorServerURL</key>
+  <string>$(MARCADOR_SERVER_URL)</string>
+  <key>MarcadorToken</key>
+  <string>$(MARCADOR_SHARE_TOKEN)</string>
+
+  <key>NSExtension</key>
+  <dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.share-services</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
+    <key>NSExtensionAttributes</key>
+    <dict>
+      <!-- Offer marcador only for things that are actually a link: a URL, or a
+           Safari page. Accepting text as well would put it in the sheet for
+           every copied sentence. -->
+      <key>NSExtensionActivationRule</key>
+      <dict>
+        <key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+        <integer>1</integer>
+        <key>NSExtensionActivationSupportsWebPageWithMaxCount</key>
+        <integer>1</integer>
+      </dict>
+    </dict>
+  </dict>
+</dict>
+</plist>

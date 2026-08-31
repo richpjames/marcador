@@ -127,6 +127,43 @@ Receive URLs from share sheet
       Request Body (JSON): url = Shortcut Input
 ```
 
+## Migrating from Karakeep
+
+```sh
+# See what would happen, without writing anything
+bun scripts/import-karakeep.ts --from https://bookmarks.example.com --key ak1_... --dry-run
+
+# Do it
+bun scripts/import-karakeep.ts --from https://bookmarks.example.com --key ak1_...
+```
+
+Get the key from Karakeep's **Settings → API Keys**. If you would rather not make
+one, export from **Settings → Import & Export** and pass the file instead:
+
+```sh
+bun scripts/import-karakeep.ts --file karakeep-export.json
+```
+
+It never writes to Karakeep, and it is safe to re-run: links deduplicate on their
+normalised URL, so a second pass imports only what is new.
+
+| Option | Does |
+| --- | --- |
+| `--dry-run` | Reports what it would import, writes nothing |
+| `--summarise missing` | Default. Keeps Karakeep's descriptions, and writes fresh ones only where there are none |
+| `--summarise all` | Re-describes everything with Mistral, so the whole list reads in one voice |
+| `--summarise none` | Keeps Karakeep's text as-is; no Mistral calls at all |
+| `--skip-archived` | Leaves Karakeep's archived bookmarks behind |
+
+**What comes across:** the URL, title, description, image, source site, and the
+original save date — so the list keeps its order rather than all landing today.
+For the description it takes your note first, then Karakeep's AI summary, then
+the page's own description.
+
+**What does not:** tags, archived state, highlights, and full-page archives.
+marcador has nowhere to put them, and storing data nothing can display is worse
+than leaving it behind. Karakeep is untouched, so it all stays there.
+
 ## API
 
 All routes need either a session cookie or `Authorization: Bearer <MARCADOR_TOKEN>`.

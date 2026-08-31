@@ -4,8 +4,17 @@ import type { Db, Link } from "./db.ts";
 import { links } from "./db.ts";
 import { normaliseUrl } from "./url.ts";
 
+export interface SaveOptions {
+  /**
+   * Overrides the save time. Only used by the importer, which has to preserve
+   * when a link was originally saved elsewhere — otherwise a migration stamps
+   * every link with the migration date and destroys the ordering.
+   */
+  createdAt?: number;
+}
+
 export interface Store {
-  save(url: string): { link: Link; created: boolean };
+  save(url: string, options?: SaveOptions): { link: Link; created: boolean };
   list(options?: { limit?: number; offset?: number }): Link[];
   search(query: string, options?: { limit?: number }): Link[];
   get(id: number): Link | undefined;
@@ -33,7 +42,7 @@ export function toFtsQuery(raw: string): string | null {
 
 export function createStore(db: Db, sqlite: Database): Store {
   return {
-    save(rawUrl) {
+    save(rawUrl, options = {}) {
       const url = normaliseUrl(rawUrl);
 
       const existing = db.select().from(links).where(eq(links.url, url)).get();
@@ -41,7 +50,7 @@ export function createStore(db: Db, sqlite: Database): Store {
 
       const link = db
         .insert(links)
-        .values({ url, status: "pending", createdAt: Date.now() })
+        .values({ url, status: "pending", createdAt: options.createdAt ?? Date.now() })
         .returning()
         .get();
 

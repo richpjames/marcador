@@ -138,3 +138,9 @@ All routes need either a session cookie or `Authorization: Bearer <MARCADOR_TOKE
 | `GET /api/links/:id` | One link. Poll it to watch `status` go `pending` → `ready`. |
 | `DELETE /api/links/:id` | Removes it. |
 | `GET /healthz` | No auth. For Coolify. |
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE) — same as On The Beach. Free to read,
+run, modify and share for any noncommercial purpose; commercial use needs a
+separate arrangement.

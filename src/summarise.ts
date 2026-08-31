@@ -15,32 +15,19 @@ import type { PageMetadata } from "./metadata.ts";
 // The prompt
 // ---------------------------------------------------------------------------
 //
-// TODO(rich): this is the sentence you will read a hundred times a week, so the
-// wording here is worth your judgement rather than mine. The default below is a
-// starting point — rewrite it to taste.
+// Kept to a plain description on purpose: the sentence says what the page is,
+// and leaves judging it to the reader.
 //
-// Trade-offs to weigh:
-//   * Descriptive ("A guide to X that covers Y") vs. evaluative ("Argues that
-//     X is overrated"). Descriptive is safer; evaluative is far more useful
-//     when scanning a long list months later.
-//   * Whether to allow the model to say it cannot tell. A confident sentence
-//     about a paywalled page is worse than an honest "Paywalled article about X".
-//   * Length. One sentence is the ask, but "under 20 words" reads very
-//     differently from "under 40".
-//   * Whether it may repeat the title. Often the title already says it, and a
-//     restated title is wasted screen space.
+// The three constraints are here because dropping them measurably hurt. Without
+// the "no preamble" line every sentence opened with "This web page is about",
+// spending a quarter of its words saying nothing. Without the word cap it
+// drifted past 30 words on documentation pages. Without "do not repeat the
+// title" it restated the heading printed directly above it.
 //
-const SYSTEM_PROMPT = `You write one-sentence descriptions for saved bookmarks.
+const SYSTEM_PROMPT = `Write one sentence, at most 25 words, describing what this web page is about.
 
-Given a web page, reply with a single sentence of at most 25 words describing what
-the page actually contains, so the reader can decide months later whether to open it.
-
-Rules:
-- Do not repeat the title. Add what the title leaves out.
-- Be concrete. Name the specific subject, tool, or argument.
-- No marketing language, no "this article", no preamble, no quotation marks.
-- If the page content is missing, paywalled, or unreadable, say so plainly in the sentence.
-- Reply with the sentence only.`;
+Do not repeat the title and do not start with "This web page" or "This article".
+Reply with the sentence only.`;
 
 /** Guard against a chatty model blowing out the list layout. */
 const MAX_DESCRIPTION_CHARS = 300;

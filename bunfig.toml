@@ -1,0 +1,4 @@
+[test]
+# config.ts reads the environment at import time, so the test secrets must be in
+# place before any module under test is loaded.
+preload = ["./tests/setup.ts"]

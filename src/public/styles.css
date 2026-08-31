@@ -1,0 +1,169 @@
+:root {
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --border: #e4e4e1;
+  --text: #1a1a18;
+  --muted: #6b6b66;
+  --accent: #1f6feb;
+  --danger: #b4232a;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131315;
+    --surface: #1b1b1e;
+    --border: #2c2c31;
+    --text: #ececed;
+    --muted: #9a9aa2;
+    --accent: #6ea8fe;
+    --danger: #f28b82;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  /* Respect the notch when running inside the Capacitor webview. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+main { max-width: 720px; margin: 0 auto; padding: 1rem 1rem 4rem; }
+
+/* --- top bar --------------------------------------------------------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand { font-weight: 650; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+.search { flex: 1; }
+.search input { width: 100%; }
+
+.link-button {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0;
+}
+.link-button:hover { color: var(--text); }
+
+/* --- forms ----------------------------------------------------------- */
+
+input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  /* 16px keeps iOS Safari from zooming the viewport on focus. */
+  font-size: 16px;
+}
+input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+button[type="submit"] {
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.add { display: flex; gap: 0.5rem; margin: 1rem 0 1.5rem; }
+.add input { flex: 1; }
+
+.banner { padding: 0.6rem 0.8rem; border-radius: var(--radius); background: var(--surface); }
+.error { color: var(--danger); }
+.muted { color: var(--muted); }
+.results-for { color: var(--muted); font-size: 0.875rem; }
+.empty { color: var(--muted); text-align: center; padding: 3rem 1rem; }
+
+/* --- link cards ------------------------------------------------------ */
+
+.links { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+
+.card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.9rem;
+  align-items: start;
+  padding: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.card.is-pending { opacity: 0.65; }
+
+.thumb { display: block; flex-shrink: 0; }
+.thumb img {
+  width: 76px;
+  height: 76px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--border);
+  display: block;
+}
+
+.card-body { min-width: 0; }
+.card-title {
+  color: var(--text);
+  font-weight: 550;
+  text-decoration: none;
+  display: block;
+  /* Long unbroken URLs used as a title must not widen the card. */
+  overflow-wrap: anywhere;
+}
+.card-title:hover { color: var(--accent); }
+
+.card-desc { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.9375rem; }
+.card-meta {
+  margin: 0.45rem 0 0;
+  display: flex;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.delete button {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+}
+.delete button:hover { color: var(--danger); background: var(--bg); }
+
+/* --- login ----------------------------------------------------------- */
+
+.login {
+  max-width: 320px;
+  margin: 18vh auto 0;
+  display: grid;
+  gap: 0.6rem;
+  padding: 0 1rem;
+}
+.login h1 { margin: 0 0 0.5rem; font-size: 1.5rem; letter-spacing: -0.02em; }
+.login label { font-size: 0.875rem; color: var(--muted); }

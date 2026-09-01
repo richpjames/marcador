@@ -1,4 +1,5 @@
 import { html, raw, type Html } from "./html.ts";
+import { scriptVersion, styleVersion } from "./assets.ts";
 
 export function layout({
   title,
@@ -18,13 +19,13 @@ ${html`<html lang="en">
     <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>${title}</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=${styleVersion}" />
     <link rel="icon" href="/static/icon.svg" />
   </head>
   <body>
     ${bare ? null : header()}
     <main>${body}</main>
-    ${bare ? null : raw('<script src="/static/app.js" defer></script>')}
+    ${bare ? null : raw(`<script src="/static/app.js?v=${scriptVersion}" defer></script>`)}
   </body>
 </html>`}`;
 }

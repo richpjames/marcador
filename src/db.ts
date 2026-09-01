@@ -44,6 +44,17 @@ export const links = sqliteTable("links", {
   enrichedAt: integer("enriched_at"),
   /** Null means unfiled, which is the resting state for most links. */
   listId: integer("list_id").references(() => lists.id, { onDelete: "set null" }),
+  /**
+   * "link" for a URL someone saved, "file" for a PDF uploaded here. A file's
+   * `url` is its own `/files/<sha256>.pdf` path, which keeps the dedupe and the
+   * href working the same way for both.
+   */
+  kind: text("kind", { enum: ["link", "file"] })
+    .notNull()
+    .default("link"),
+  /** The name the file was uploaded under, kept for display and download. */
+  fileName: text("file_name"),
+  fileSize: integer("file_size"),
 });
 
 export type Link = typeof links.$inferSelect;
@@ -75,7 +86,10 @@ CREATE TABLE IF NOT EXISTS links (
   error TEXT,
   created_at INTEGER NOT NULL,
   enriched_at INTEGER,
-  list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL
+  list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL,
+  kind TEXT NOT NULL DEFAULT 'link',
+  file_name TEXT,
+  file_size INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS links_created_at_idx ON links (created_at DESC);
@@ -126,10 +140,21 @@ export function openDatabase(path: string = config.databasePath): Database {
  * that does not exist yet and the process would die on boot.
  */
 function addMissingColumns(sqlite: Database): void {
-  const columns = sqlite.query<{ name: string }, []>("PRAGMA table_info(links)").all();
+  const columns = new Set(
+    sqlite.query<{ name: string }, []>("PRAGMA table_info(links)").all().map((c) => c.name),
+  );
 
-  if (!columns.some((column) => column.name === "list_id")) {
+  if (!columns.has("list_id")) {
     sqlite.exec("ALTER TABLE links ADD COLUMN list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL;");
+  }
+  if (!columns.has("kind")) {
+    sqlite.exec("ALTER TABLE links ADD COLUMN kind TEXT NOT NULL DEFAULT 'link';");
+  }
+  if (!columns.has("file_name")) {
+    sqlite.exec("ALTER TABLE links ADD COLUMN file_name TEXT;");
+  }
+  if (!columns.has("file_size")) {
+    sqlite.exec("ALTER TABLE links ADD COLUMN file_size INTEGER;");
   }
 
   sqlite.exec("CREATE INDEX IF NOT EXISTS links_list_id_idx ON links (list_id);");

@@ -28,6 +28,13 @@ export const config = {
    */
   secret: process.env.MARCADOR_SECRET || `derived:${required("MARCADOR_PASSWORD")}`,
 
+  /**
+   * Cap on an uploaded PDF. Generous enough for a scanned manual — the Olympus
+   * one that prompted this is 5 MB — without letting a stray upload fill the
+   * volume the database also lives on.
+   */
+  maxUploadBytes: Number(process.env.MARCADOR_MAX_UPLOAD_BYTES ?? 25 * 1024 * 1024),
+
   mistralApiKey: process.env.MISTRAL_API_KEY ?? "",
   mistralModel: process.env.MISTRAL_MODEL ?? "mistral-small-latest",
 

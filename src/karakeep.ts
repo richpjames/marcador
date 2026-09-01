@@ -39,7 +39,15 @@ export interface KarakeepBookmark {
         publisher?: string | null;
         author?: string | null;
       }
-    | { type: "text" | "asset" | "unknown"; [key: string]: unknown };
+    | {
+        type: "asset";
+        /** Path within Karakeep's assets directory, from the SQLite exporter. */
+        assetPath?: string | null;
+        fileName?: string | null;
+        contentType?: string | null;
+        size?: number | null;
+      }
+    | { type: "text" | "unknown"; [key: string]: unknown };
 }
 
 /** What one Karakeep bookmark becomes in marcador. */
@@ -88,6 +96,43 @@ export function mapBookmark(bookmark: KarakeepBookmark): MappedLink | null {
     siteName: firstOf(content.publisher) ?? hostOf(content.url),
     // A bookmark with an unparseable date still belongs in the list; putting it
     // at "now" is less wrong than dropping it.
+    createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+    listName: firstOf(bookmark.lists?.[0]?.name),
+    listIcon: firstOf(bookmark.lists?.[0]?.icon),
+  };
+}
+
+/** An uploaded file that marcador can take: today that means a PDF. */
+export interface MappedFile {
+  assetPath: string;
+  fileName: string;
+  title: string | null;
+  createdAt: number;
+  listName: string | null;
+  listIcon: string | null;
+}
+
+/**
+ * Karakeep's uploaded files. Only PDFs come across — marcador stores those and
+ * can describe them, where an arbitrary binary would be a download it knows
+ * nothing about. Returns null for anything else, including a link.
+ */
+export function mapAsset(bookmark: KarakeepBookmark): MappedFile | null {
+  if (bookmark.content?.type !== "asset") return null;
+
+  const content = bookmark.content;
+  if (!content.assetPath) return null;
+  if (content.contentType && !content.contentType.includes("pdf")) return null;
+
+  const fileName = firstOf(content.fileName) ?? "document.pdf";
+  const createdAt = Date.parse(bookmark.createdAt);
+
+  return {
+    assetPath: content.assetPath,
+    fileName,
+    // Karakeep titles an upload with the filename unless you rename it, and a
+    // renamed one is worth more than the filename on the card.
+    title: firstOf(bookmark.title) ?? null,
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
     listName: firstOf(bookmark.lists?.[0]?.name),
     listIcon: firstOf(bookmark.lists?.[0]?.icon),

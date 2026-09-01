@@ -7,10 +7,11 @@
   // the scriptless case. Set first so nothing below can leave it half-applied.
   document.documentElement.classList.add("js");
 
-  // Filing a link is a one-touch action on a phone: pick a list and it saves.
-  // The "Move" button beside each select is what runs when this never loads.
-  for (const select of document.querySelectorAll("select[data-autosubmit]")) {
-    select.addEventListener("change", () => select.form.requestSubmit());
+  // Filing a link and picking a PDF are both one-touch actions on a phone: the
+  // change submits the form. The button beside each control is what runs when
+  // this file never loads.
+  for (const control of document.querySelectorAll("[data-autosubmit]")) {
+    control.addEventListener("change", () => control.form.requestSubmit());
   }
 
   const search = document.getElementById("q");

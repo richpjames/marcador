@@ -4,11 +4,14 @@ import { createStore } from "./store.ts";
 import { createSummariser } from "./summarise.ts";
 import { createEnricher, resumePending } from "./enrich.ts";
 import { createApp } from "./app.ts";
+import { filesDirFor } from "./files.ts";
 
 const { db, sqlite } = createDb();
 const store = createStore(db, sqlite);
 const summariser = createSummariser();
-const enricher = createEnricher({ store, summariser });
+// Uploads sit next to the database, so one persistent volume holds both.
+const filesDir = filesDirFor(config.databasePath);
+const enricher = createEnricher({ store, summariser, filesDir });
 
 const resumed = resumePending(store, enricher);
 if (resumed > 0) console.log(`[boot] resuming enrichment for ${resumed} link(s)`);
@@ -17,9 +20,9 @@ if (!config.mistralApiKey) {
   console.warn("[boot] MISTRAL_API_KEY is unset — links will fall back to the page's own description");
 }
 
-const app = createApp({ store, enricher });
+const app = createApp({ store, enricher, filesDir });
 
-console.log(`[boot] marcador listening on :${config.port} (db: ${config.databasePath})`);
+console.log(`[boot] marcador listening on :${config.port} (db: ${config.databasePath}, files: ${filesDir})`);
 
 export default {
   port: config.port,

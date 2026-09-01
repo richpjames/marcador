@@ -17,6 +17,13 @@ export interface PageMetadata {
   excerpt: string;
 }
 
+/**
+ * Cap on a linked PDF that gets downloaded to be read. Well above a datasheet
+ * or a programme, well below anything that would hurt to pull over the wire on
+ * every save.
+ */
+const MAX_PDF_BYTES = 20 * 1024 * 1024;
+
 /** Pages are fetched with a real-browser UA; plenty of sites 403 anything else. */
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
@@ -28,9 +35,43 @@ const MAX_BYTES = 1_500_000;
 /** Excerpt cap, chosen to stay comfortably inside a cheap Mistral call. */
 const MAX_EXCERPT_CHARS = 6_000;
 
+async function pdfMetadata(response: Response, url: string): Promise<PageMetadata> {
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (declared > MAX_PDF_BYTES) {
+    throw new Error(`PDF is too large to read (${Math.round(declared / 1_048_576)} MB)`);
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  // Checked again after download, because content-length is a claim, not a fact.
+  if (bytes.byteLength > MAX_PDF_BYTES) {
+    throw new Error("PDF is too large to read");
+  }
+
+  const { readPdf } = await import("./pdf.ts");
+  const { title, excerpt, pageCount } = await readPdf(bytes);
+
+  return {
+    title: title ?? lastPathSegment(url),
+    imageUrl: null,
+    siteName: `PDF · ${pageCount} page${pageCount === 1 ? "" : "s"}`,
+    pageDescription: null,
+    excerpt,
+  };
+}
+
+/** "…/PROGRAMA_FIA_2026.pdf" → "PROGRAMA_FIA_2026", for a PDF with no title. */
+function lastPathSegment(url: string): string | null {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() ?? "");
+    return name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchMetadata(url: string): Promise<PageMetadata> {
   const response = await fetch(url, {
-    headers: { "user-agent": USER_AGENT, accept: "text/html,application/xhtml+xml" },
+    headers: { "user-agent": USER_AGENT, accept: "text/html,application/xhtml+xml,application/pdf" },
     redirect: "follow",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
@@ -40,9 +81,17 @@ export async function fetchMetadata(url: string): Promise<PageMetadata> {
   }
 
   const contentType = response.headers.get("content-type") ?? "";
+
+  // A linked PDF gets read rather than skipped: it has a title and a body, they
+  // are just not in HTML, and a bookmark to a datasheet is no less worth
+  // describing than a bookmark to a blog post.
+  if (contentType.includes("pdf")) {
+    return await pdfMetadata(response, url);
+  }
+
   if (!contentType.includes("html")) {
-    // A PDF or an image is still a legitimate bookmark; there is just nothing
-    // to scrape, so fall back to the URL itself and let the summariser skip it.
+    // An image or a zip is still a legitimate bookmark; there is nothing to
+    // scrape, so fall back to the URL itself and let the summariser skip it.
     return { title: null, imageUrl: null, siteName: null, pageDescription: null, excerpt: "" };
   }
 

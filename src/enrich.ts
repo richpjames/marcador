@@ -1,6 +1,9 @@
+import type { Link } from "./db.ts";
 import type { Store } from "./store.ts";
 import type { Summariser } from "./summarise.ts";
-import { fetchMetadata } from "./metadata.ts";
+import { fetchMetadata, type PageMetadata } from "./metadata.ts";
+import { pathForStoredFile, storedNameFromUrl } from "./files.ts";
+import { readPdf } from "./pdf.ts";
 import { hostOf } from "./url.ts";
 
 /**
@@ -27,6 +30,8 @@ export interface Enricher {
 export interface EnricherOptions {
   store: Store;
   summariser: Summariser;
+  /** Where uploaded PDFs are stored. Required to enrich them. */
+  filesDir?: string;
   /** Injectable so tests do not reach the network. */
   fetchPage?: typeof fetchMetadata;
 }
@@ -34,6 +39,7 @@ export interface EnricherOptions {
 export function createEnricher({
   store,
   summariser,
+  filesDir,
   fetchPage = fetchMetadata,
 }: EnricherOptions): Enricher {
   const queue: number[] = [];
@@ -58,7 +64,7 @@ export function createEnricher({
     if (!link) return;
 
     try {
-      const page = await fetchPage(link.url);
+      const page = link.kind === "file" ? await readStoredPdf(link) : await fetchPage(link.url);
       const summary = await summariser.summarise(link.url, page);
 
       store.markReady(id, {
@@ -74,6 +80,28 @@ export function createEnricher({
       console.error(`[enrich] ${link.url}: ${message}`);
       store.markFailed(id, message);
     }
+  }
+
+  /** Reads an uploaded PDF off the volume and shapes it like a fetched page. */
+  async function readStoredPdf(link: Link): Promise<PageMetadata> {
+    const name = storedNameFromUrl(link.url);
+    const path = filesDir && name ? pathForStoredFile(name, filesDir) : null;
+    if (!path) throw new Error("This upload is missing from the file store.");
+
+    const file = Bun.file(path);
+    if (!(await file.exists())) throw new Error("This upload is missing from the file store.");
+
+    const { title, excerpt, pageCount } = await readPdf(new Uint8Array(await file.arrayBuffer()));
+
+    return {
+      // The PDF's own title wins, then anything an import already knew, and
+      // the filename last — it is often just a product code.
+      title: title ?? link.title ?? link.fileName,
+      imageUrl: null,
+      siteName: `PDF · ${pageCount} page${pageCount === 1 ? "" : "s"}`,
+      pageDescription: null,
+      excerpt,
+    };
   }
 
   return {

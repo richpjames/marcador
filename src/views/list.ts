@@ -35,6 +35,14 @@ export function listPage({
       <button type="submit">Save</button>
     </form>
 
+    <form class="upload" action="/files" method="post" enctype="multipart/form-data">
+      <label>
+        <input type="file" name="file" accept="application/pdf,.pdf" data-autosubmit />
+        <span>or upload a PDF</span>
+      </label>
+      <button type="submit" class="no-js">Upload</button>
+    </form>
+
     ${nav({ lists, activeList, total, query })}
 
     ${query
@@ -129,11 +137,18 @@ function card(link: Link, lists: ListWithCount[]): Html {
   // the phone shows up in the list straight away and fills in as it enriches.
   const pending = link.status === "pending";
 
+  const isFile = link.kind === "file";
+
   return html`
     <li class="card ${pending ? "is-pending" : ""}" data-id="${link.id}">
       ${link.imageUrl
         ? html`<a class="thumb" href="${link.url}" target="_blank" rel="noreferrer noopener">
             <img src="${link.imageUrl}" alt="" loading="lazy" />
+          </a>`
+        : null}
+      ${isFile && !link.imageUrl
+        ? html`<a class="thumb thumb-pdf" href="${link.url}" target="_blank" rel="noreferrer noopener">
+            <span aria-hidden="true">PDF</span>
           </a>`
         : null}
 
@@ -145,11 +160,17 @@ function card(link: Link, lists: ListWithCount[]): Html {
         ${link.description ? html`<p class="card-desc">${link.description}</p>` : null}
         ${pending ? html`<p class="card-desc muted">Fetching description…</p>` : null}
         ${link.status === "failed"
-          ? html`<p class="card-desc error" title="${link.error ?? ""}">Could not read this page.</p>`
+          ? html`<p class="card-desc error" title="${link.error ?? ""}">
+              Could not read this ${isFile ? "PDF" : "page"}.
+            </p>`
           : null}
 
         <p class="card-meta">
-          <span>${link.siteName ?? hostOf(link.url)}</span>
+          <span>${link.siteName ?? (isFile ? "PDF" : hostOf(link.url))}</span>
+          ${isFile && link.fileSize
+            ? html`<span aria-hidden="true">·</span>
+                <span>${formatSize(link.fileSize)}</span>`
+            : null}
           <span aria-hidden="true">·</span>
           <time datetime="${new Date(link.createdAt).toISOString()}">
             ${formatDate(link.createdAt)}
@@ -189,6 +210,11 @@ function picker(link: Link, lists: ListWithCount[]): Html {
       <button type="submit" class="no-js">Move</button>
     </form>
   `;
+}
+
+function formatSize(bytes: number): string {
+  const mb = bytes / 1_048_576;
+  return mb < 1 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${mb.toFixed(1)} MB`;
 }
 
 function formatDate(timestamp: number): string {

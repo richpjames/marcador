@@ -36,6 +36,10 @@ interface Row {
   type: string;
   url: string | null;
   linkTitle: string | null;
+  assetPath: string | null;
+  assetName: string | null;
+  assetType: string | null;
+  assetSize: number | null;
   description: string | null;
   imageUrl: string | null;
   publisher: string | null;
@@ -49,9 +53,12 @@ interface Row {
 const rows = db
   .query<Row, []>(
     `select b.id, b.createdAt, b.title, b.summary, b.note, b.archived, b.favourited, b.type,
-            l.url, l.title as linkTitle, l.description, l.imageUrl, l.publisher, l.author
+            l.url, l.title as linkTitle, l.description, l.imageUrl, l.publisher, l.author,
+            a.userId || '/' || a.id || '/asset.bin' as assetPath,
+            a.fileName as assetName, a.contentType as assetType, a.size as assetSize
        from bookmarks b
        left join bookmarkLinks l on l.id = b.id
+       left join assets a on a.bookmarkId = b.id and a.assetType = 'bookmarkAsset'
       order by b.createdAt asc`,
   )
   .all();
@@ -110,7 +117,17 @@ const bookmarks: KarakeepBookmark[] = rows.map((row) => ({
           publisher: row.publisher,
           author: row.author,
         }
-      : { type: row.type === "text" ? "text" : row.type === "asset" ? "asset" : "unknown" },
+      : row.type === "asset" && row.assetPath
+        ? {
+            type: "asset",
+            // Relative to Karakeep's assets directory, so the importer does not
+            // have to guess the layout from an id.
+            assetPath: row.assetPath,
+            fileName: row.assetName,
+            contentType: row.assetType,
+            size: row.assetSize,
+          }
+        : { type: row.type === "text" ? "text" : "unknown" },
 }));
 
 await Bun.write(outPath, `${JSON.stringify({ bookmarks }, null, 2)}\n`);
@@ -118,9 +135,11 @@ db.close();
 
 const links = bookmarks.filter((b) => b.content.type === "link").length;
 const filed = bookmarks.filter((b) => (b.lists?.length ?? 0) > 0).length;
+const assets = bookmarks.filter((b) => b.content.type === "asset").length;
 console.log(
   `Wrote ${bookmarks.length} bookmark(s) to ${outPath} ` +
-    `(${links} link(s), ${bookmarks.length - links} other, ${filed} in a list).`,
+    `(${links} link(s), ${assets} file(s), ${bookmarks.length - links - assets} other, ` +
+    `${filed} in a list).`,
 );
 
 function parseArgs(argv: string[]): Record<string, string | undefined> {

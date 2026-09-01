@@ -1,5 +1,11 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { fetchFromApi, mapBookmark, parseExport, type KarakeepBookmark } from "../src/karakeep.ts";
+import {
+  fetchFromApi,
+  mapAsset,
+  mapBookmark,
+  parseExport,
+  type KarakeepBookmark,
+} from "../src/karakeep.ts";
 import { createDb } from "../src/db.ts";
 import { createStore } from "../src/store.ts";
 
@@ -87,8 +93,49 @@ describe("mapBookmark", () => {
 
   test("returns null for the bookmark types marcador cannot hold", () => {
     expect(mapBookmark(linkBookmark({ content: { type: "text", text: "a note" } }))).toBeNull();
-    expect(mapBookmark(linkBookmark({ content: { type: "asset", assetId: "x" } }))).toBeNull();
+    expect(mapBookmark(linkBookmark({ content: { type: "asset", fileName: "x.pdf" } }))).toBeNull();
     expect(mapBookmark(linkBookmark({ content: { type: "unknown" } }))).toBeNull();
+  });
+
+  test("takes a PDF upload, with its date, title and list", () => {
+    const mapped = mapAsset(
+      linkBookmark({
+        title: "Festival programme",
+        lists: [{ name: "Asturias", icon: "🚀" }],
+        content: {
+          type: "asset",
+          assetPath: "user1/asset1/asset.bin",
+          fileName: "PROGRAMA.pdf",
+          contentType: "application/pdf",
+          size: 733150,
+        },
+      }),
+    );
+
+    expect(mapped).toEqual({
+      assetPath: "user1/asset1/asset.bin",
+      fileName: "PROGRAMA.pdf",
+      title: "Festival programme",
+      createdAt: Date.parse("2025-03-14T09:26:53.000Z"),
+      listName: "Asturias",
+      listIcon: "🚀",
+    });
+  });
+
+  test("leaves behind uploads that are not PDFs, and links", () => {
+    expect(
+      mapAsset(
+        linkBookmark({
+          content: {
+            type: "asset",
+            assetPath: "user1/asset1/asset.bin",
+            fileName: "photo.jpg",
+            contentType: "image/jpeg",
+          },
+        }),
+      ),
+    ).toBeNull();
+    expect(mapAsset(linkBookmark())).toBeNull();
   });
 
   test("survives an unparseable date instead of dropping the link", () => {

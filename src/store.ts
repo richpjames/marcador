@@ -3,6 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import type { Db, Link, List } from "./db.ts";
 import { links, lists } from "./db.ts";
 import { normaliseUrl } from "./url.ts";
+import { urlForStoredFile } from "./files.ts";
 
 export interface SaveOptions {
   /**
@@ -18,11 +19,25 @@ export interface ListWithCount extends List {
   count: number;
 }
 
+/** An uploaded PDF that has already been written to disk. */
+export interface FileToSave {
+  /** The stored `<sha256>.pdf` name, from `storePdf`. */
+  storedName: string;
+  fileName: string;
+  size: number;
+  createdAt?: number;
+  /** Overrides the filename as the display title. Used by the importer. */
+  title?: string | null;
+}
+
 export interface Store {
   save(url: string, options?: SaveOptions): { link: Link; created: boolean };
+  /** Same contract as `save`: re-uploading identical bytes returns the original. */
+  saveFile(file: FileToSave): { link: Link; created: boolean };
   list(options?: { limit?: number; offset?: number; listId?: number }): Link[];
   search(query: string, options?: { limit?: number; listId?: number }): Link[];
   get(id: number): Link | undefined;
+  byUrl(url: string): Link | undefined;
   remove(id: number): boolean;
   markReady(id: number, fields: Partial<Pick<Link, "title" | "description" | "imageUrl" | "siteName">>): void;
   markFailed(id: number, message: string): void;
@@ -72,6 +87,37 @@ export function createStore(db: Db, sqlite: Database): Store {
       return { link, created: true };
     },
 
+    saveFile({ storedName, fileName, size, createdAt, title }) {
+      const url = urlForStoredFile(storedName);
+
+      // The name is the hash of the contents, so an identical PDF uploaded a
+      // second time collides here and keeps the original — and its list.
+      const existing = db.select().from(links).where(eq(links.url, url)).get();
+      if (existing) return { link: existing, created: false };
+
+      const link = db
+        .insert(links)
+        .values({
+          url,
+          kind: "file",
+          fileName,
+          fileSize: size,
+          // The filename is the only thing known before the PDF is read, and a
+          // card with no title at all looks broken while enrichment runs.
+          title: title?.trim() || fileName,
+          // Set now rather than at enrichment: a file's card has no host to
+          // fall back on, so a pending or failed upload would otherwise show
+          // "/files/3f2a…pdf" where the site name goes.
+          siteName: "PDF",
+          status: "pending",
+          createdAt: createdAt ?? Date.now(),
+        })
+        .returning()
+        .get();
+
+      return { link, created: true };
+    },
+
     list({ limit = 100, offset = 0, listId } = {}) {
       const query = db.select().from(links).$dynamic();
 
@@ -104,6 +150,10 @@ export function createStore(db: Db, sqlite: Database): Store {
 
     get(id) {
       return db.select().from(links).where(eq(links.id, id)).get();
+    },
+
+    byUrl(url) {
+      return db.select().from(links).where(eq(links.url, url)).get();
     },
 
     remove(id) {
@@ -188,5 +238,8 @@ function rowToLink(row: Record<string, unknown>): Link {
     createdAt: row.created_at as number,
     enrichedAt: (row.enriched_at ?? null) as number | null,
     listId: (row.list_id ?? null) as number | null,
+    kind: row.kind as Link["kind"],
+    fileName: (row.file_name ?? null) as string | null,
+    fileSize: (row.file_size ?? null) as number | null,
   };
 }

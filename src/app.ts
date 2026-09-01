@@ -1,5 +1,8 @@
 import { Hono, type Context } from "hono";
 import { join } from "node:path";
+import { config } from "./config.ts";
+import { pathForStoredFile, storePdf, urlForStoredFile } from "./files.ts";
+import { looksLikePdf } from "./pdf.ts";
 import type { Store } from "./store.ts";
 import type { Enricher } from "./enrich.ts";
 import { layout } from "./views/layout.ts";
@@ -17,11 +20,13 @@ import {
 export interface AppOptions {
   store: Store;
   enricher: Enricher;
+  /** Where uploaded PDFs are stored. Uploads are refused without it. */
+  filesDir?: string;
 }
 
 const STATIC_DIR = join(import.meta.dir, "public");
 
-export function createApp({ store, enricher }: AppOptions) {
+export function createApp({ store, enricher, filesDir }: AppOptions) {
   const app = new Hono();
 
   // -------------------------------------------------------------------------
@@ -162,6 +167,42 @@ export function createApp({ store, enricher }: AppOptions) {
     return c.redirect(result.ok ? "/" : `/?error=${encodeURIComponent(result.error)}`);
   });
 
+  /**
+   * PDF upload. Behind the auth wall like everything else, and behind a
+   * content sniff too: the browser's declared type is a hint, the magic number
+   * at the front of the bytes is the fact.
+   */
+  app.post("/files", async (c) => {
+    const result = await storeUpload(await c.req.parseBody());
+
+    if (!result.ok) return c.redirect(`/?error=${encodeURIComponent(result.error)}`);
+    return c.redirect(backTo(c));
+  });
+
+  /**
+   * Serves an uploaded PDF. Inline rather than as an attachment so tapping it
+   * opens the reader instead of starting a download.
+   */
+  app.get("/files/:name", async (c) => {
+    const path = filesDir ? pathForStoredFile(c.req.param("name"), filesDir) : null;
+    if (!path) return c.notFound();
+
+    const file = Bun.file(path);
+    if (!(await file.exists())) return c.notFound();
+
+    const link = store.byUrl(urlForStoredFile(c.req.param("name")));
+    const name = (link?.fileName ?? "document.pdf").replace(/["\\]/g, "");
+
+    return new Response(file, {
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `inline; filename="${name}"`,
+        // Contents are addressed by hash, so a stored file never changes.
+        "cache-control": "private, max-age=31536000, immutable",
+      },
+    });
+  });
+
   app.post("/links/:id/delete", (c) => {
     store.remove(Number(c.req.param("id")));
     return c.redirect("/");
@@ -194,6 +235,23 @@ export function createApp({ store, enricher }: AppOptions) {
 
   app.get("/api/lists", (c) => c.json({ lists: store.allLists() }));
 
+  /** Upload from a Shortcut or the share sheet, rather than the web form. */
+  app.post("/api/files", async (c) => {
+    const result = await storeUpload(await c.req.parseBody());
+    if (!result.ok) return c.json({ error: result.error }, 400);
+
+    return c.json(
+      {
+        id: result.link.id,
+        url: result.link.url,
+        fileName: result.link.fileName,
+        status: result.link.status,
+        created: result.created,
+      },
+      result.created ? 201 : 200,
+    );
+  });
+
   /** Lets the list poll a pending card until its description lands. */
   app.get("/api/links/:id", (c) => {
     const link = store.get(Number(c.req.param("id")));
@@ -204,6 +262,40 @@ export function createApp({ store, enricher }: AppOptions) {
     const removed = store.remove(Number(c.req.param("id")));
     return removed ? c.json({ ok: true }) : c.json({ error: "Not found" }, 404);
   });
+
+  /**
+   * Shared by the form post and the JSON API. Validates, writes the file, then
+   * records it — in that order, so a rejected upload leaves nothing behind.
+   */
+  async function storeUpload(form: Record<string, unknown>) {
+    if (!filesDir) return { ok: false as const, error: "Uploads are not configured." };
+
+    const file = form.file;
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false as const, error: "No file was uploaded." };
+    }
+
+    if (file.size > config.maxUploadBytes) {
+      const limit = Math.round(config.maxUploadBytes / 1_048_576);
+      return { ok: false as const, error: `That file is bigger than the ${limit} MB limit.` };
+    }
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!looksLikePdf(bytes)) {
+      return { ok: false as const, error: "Only PDFs can be uploaded." };
+    }
+
+    const storedName = await storePdf(bytes, filesDir);
+    const { link, created } = store.saveFile({
+      storedName,
+      fileName: file.name || "document.pdf",
+      size: bytes.byteLength,
+    });
+
+    if (created) enricher.enqueue(link.id);
+
+    return { ok: true as const, link, created };
+  }
 
   function saveAndEnqueue(url: string) {
     if (!url.trim()) return { ok: false as const, error: "No URL given." };

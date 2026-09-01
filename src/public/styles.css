@@ -251,3 +251,32 @@ button[type="submit"] {
 
 /* app.js submits the select on change; the button is the no-script fallback. */
 .js .no-js { display: none; }
+
+/* --- uploads --------------------------------------------------------- */
+
+.upload { margin: -1rem 0 1.5rem; font-size: 0.875rem; }
+.upload label { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.upload input[type="file"] { max-width: 15rem; font-size: 0.8125rem; color: var(--muted); }
+.upload span { color: var(--muted); }
+
+/* Stands in for the thumbnail a PDF does not have, at the same size so a mixed
+   list keeps one column of text rather than two ragged ones. */
+.thumb-pdf {
+  width: 128px;
+  aspect-ratio: 1.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+.thumb-pdf:hover { color: var(--accent); }
+
+@media (max-width: 520px) {
+  .thumb-pdf { width: 100%; aspect-ratio: 4; }
+}

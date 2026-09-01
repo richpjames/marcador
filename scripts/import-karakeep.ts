@@ -16,14 +16,25 @@
  *   --dry-run        Report what would happen, write nothing
  *   --summarise <s>  missing (default) | all | none — see below
  *   --skip-archived  Leave Karakeep's archived bookmarks behind
+ *   --assets <dir>   Karakeep's assets directory, to bring uploaded PDFs across
  */
 
 import { createDb } from "../src/db.ts";
 import { createStore } from "../src/store.ts";
 import { createSummariser } from "../src/summarise.ts";
 import { createEnricher } from "../src/enrich.ts";
-import { fetchFromApi, mapBookmark, parseExport, type KarakeepBookmark } from "../src/karakeep.ts";
+import {
+  fetchFromApi,
+  mapAsset,
+  mapBookmark,
+  parseExport,
+  type KarakeepBookmark,
+} from "../src/karakeep.ts";
+import { storePdf } from "../src/files.ts";
+import { looksLikePdf } from "../src/pdf.ts";
 import { config } from "../src/config.ts";
+import { filesDirFor } from "../src/files.ts";
+import { join } from "node:path";
 
 const args = parseArgs(Bun.argv.slice(2));
 
@@ -60,8 +71,17 @@ console.log(`Found ${bookmarks.length} bookmark(s) in Karakeep.\n`);
 
 // --- Map ----------------------------------------------------------------
 
-const stats = { imported: 0, duplicate: 0, notALink: 0, archived: 0, queued: 0, filed: 0 };
+const stats = {
+  imported: 0,
+  duplicate: 0,
+  notALink: 0,
+  archived: 0,
+  queued: 0,
+  filed: 0,
+  uploads: 0,
+};
 const mapped = [];
+const uploads = [];
 
 for (const bookmark of bookmarks) {
   if (args["skip-archived"] && bookmark.archived) {
@@ -70,13 +90,21 @@ for (const bookmark of bookmarks) {
   }
 
   const link = mapBookmark(bookmark);
-  if (!link) {
-    // Text notes and uploaded files have no URL to save.
-    stats.notALink += 1;
+  if (link) {
+    mapped.push(link);
     continue;
   }
 
-  mapped.push(link);
+  // An uploaded PDF has no URL, but it does have a file worth carrying over —
+  // which needs --assets, because the bytes live outside the export.
+  const file = args.assets ? mapAsset(bookmark) : null;
+  if (file) {
+    uploads.push(file);
+    continue;
+  }
+
+  // Text notes, images, and PDFs when --assets was not given.
+  stats.notALink += 1;
 }
 
 if (args["dry-run"]) {
@@ -86,10 +114,15 @@ if (args["dry-run"]) {
     console.log(`    ${link.description ?? "(no description — would be summarised)"}`);
   }
   if (mapped.length > 10) console.log(`  … and ${mapped.length - 10} more`);
-  const listNames = new Set(mapped.map((link) => link.listName).filter(Boolean));
+  const listNames = new Set(
+    [...mapped, ...uploads].map((item) => item.listName).filter(Boolean),
+  );
+  for (const file of uploads) console.log(`  [PDF] ${file.title ?? file.fileName}`);
+
   console.log(
-    `\nWould import ${mapped.length} link(s) into ${listNames.size} list(s); ` +
-      `skipping ${stats.notALink} non-link and ${stats.archived} archived.`,
+    `\nWould import ${mapped.length} link(s) and ${uploads.length} PDF(s) ` +
+      `into ${listNames.size} list(s); ` +
+      `skipping ${stats.notALink} other and ${stats.archived} archived.`,
   );
   process.exit(0);
 }
@@ -98,7 +131,8 @@ if (args["dry-run"]) {
 
 const { db, sqlite } = createDb();
 const store = createStore(db, sqlite);
-const enricher = createEnricher({ store, summariser: createSummariser() });
+const filesDir = filesDirFor(config.databasePath);
+const enricher = createEnricher({ store, summariser: createSummariser(), filesDir });
 
 // Lists are created on first sight and reused after, so the import makes one
 // row per name however many bookmarks reference it.
@@ -165,9 +199,60 @@ for (const link of mapped) {
   }
 }
 
+// --- Uploaded files -----------------------------------------------------
+
+for (const file of uploads) {
+  const source = Bun.file(join(args.assets!, file.assetPath));
+
+  if (!(await source.exists())) {
+    console.warn(`  skipped ${file.fileName}: not found under ${args.assets}`);
+    stats.notALink += 1;
+    continue;
+  }
+
+  const bytes = new Uint8Array(await source.arrayBuffer());
+  if (!looksLikePdf(bytes)) {
+    console.warn(`  skipped ${file.fileName}: not a PDF`);
+    stats.notALink += 1;
+    continue;
+  }
+
+  const storedName = await storePdf(bytes, filesDir);
+  const saved = store.saveFile({
+    storedName,
+    fileName: file.fileName,
+    size: bytes.byteLength,
+    createdAt: file.createdAt,
+    title: file.title,
+  });
+
+  const listId = file.listName ? listIdFor(file.listName, file.listIcon) : null;
+
+  if (!saved.created) {
+    stats.duplicate += 1;
+    if (listId !== null && saved.link.listId === null) {
+      store.assign(saved.link.id, listId);
+      stats.filed += 1;
+    }
+    continue;
+  }
+
+  stats.uploads += 1;
+  if (listId !== null) {
+    store.assign(saved.link.id, listId);
+    stats.filed += 1;
+  }
+
+  // Always enriched: the description has to come from the PDF's own text,
+  // because Karakeep never had one for an upload.
+  enricher.enqueue(saved.link.id);
+  stats.queued += 1;
+}
+
 console.log(
-  `\nImported ${stats.imported}, skipped ${stats.duplicate} already present, ` +
-    `${stats.notALink} not links, ${stats.archived} archived.`,
+  `\nImported ${stats.imported} link(s) and ${stats.uploads} PDF(s), ` +
+    `skipped ${stats.duplicate} already present, ` +
+    `${stats.notALink} not importable, ${stats.archived} archived.`,
 );
 console.log(`Filed ${stats.filed} link(s) across ${listIds.size} list(s).`);
 

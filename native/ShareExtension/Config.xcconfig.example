@@ -8,5 +8,5 @@
 // https://host is silently truncated to "https:". The "$()" below expands to
 // nothing and exists solely to keep the two slashes from being adjacent.
 // Keep that exact shape when you change the host.
-MARCADOR_SERVER_URL = https:/$()/marcador.ricojam.es
+MARCADOR_SERVER_URL = https:/$()/bookmarks.ricojam.es
 MARCADOR_SHARE_TOKEN = paste-your-MARCADOR_TOKEN-here

@@ -14,7 +14,7 @@ const config: CapacitorConfig = {
   // Unused while `server.url` is set, but Capacitor insists the directory exist.
   webDir: "www",
   server: {
-    url: process.env.MARCADOR_APP_URL ?? "https://marcador.ricojam.es",
+    url: process.env.MARCADOR_APP_URL ?? "https://bookmarks.ricojam.es",
     cleartext: false,
   },
 };

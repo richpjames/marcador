@@ -7,29 +7,57 @@
  * up as a runtime failure on one of them rather than a failed install.
  */
 
-import { extractText, getDocumentProxy } from "unpdf";
+import { getDocumentProxy } from "unpdf";
 
 export interface PdfContents {
   /** The PDF's own title, when it has one worth using. */
   title: string | null;
   /** Plain text for the summariser, capped like the HTML excerpt is. */
   excerpt: string;
+  /** Pages in the document, not pages read — the card shows the real length. */
   pageCount: number;
+  /** How many of them were actually read. */
+  pagesRead: number;
 }
+
+/**
+ * Only the front of a PDF is read.
+ *
+ * What a document is about is on its first few pages; page 90 of a camera
+ * manual is a menu reference that would only crowd the useful part out of the
+ * excerpt. Stopping at five also means a 500-page scan costs the same to
+ * describe as a leaflet, because the pages beyond it are never parsed at all —
+ * this is a limit on the work, not a truncation after it.
+ */
+const MAX_PAGES = 5;
 
 /** Matches the HTML excerpt cap, so a PDF costs the same as a page to describe. */
 const MAX_EXCERPT_CHARS = 6_000;
 
 export async function readPdf(bytes: Uint8Array): Promise<PdfContents> {
   const pdf = await getDocumentProxy(bytes);
-  const { totalPages, text } = await extractText(pdf, { mergePages: true });
+  const pageCount = pdf.numPages;
+  const pagesRead = Math.min(pageCount, MAX_PAGES);
+
+  const pages: string[] = [];
+  for (let number = 1; number <= pagesRead; number += 1) {
+    const page = await pdf.getPage(number);
+    const content = await page.getTextContent();
+
+    pages.push(
+      content.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" "),
+    );
+  }
 
   return {
     title: await titleOf(pdf),
     // PDF text arrives with the layout's line breaks and column gaps baked in;
     // collapsing whitespace turns it back into prose the model can read.
-    excerpt: String(text).replace(/\s+/g, " ").trim().slice(0, MAX_EXCERPT_CHARS),
-    pageCount: totalPages,
+    excerpt: pages.join(" ").replace(/\s+/g, " ").trim().slice(0, MAX_EXCERPT_CHARS),
+    pageCount,
+    pagesRead,
   };
 }
 

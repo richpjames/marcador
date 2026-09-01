@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { looksLikePdf, readPdf } from "../src/pdf.ts";
 import { storedNameFromUrl, urlForStoredFile, pathForStoredFile } from "../src/files.ts";
-import { tinyPdf } from "./pdf-fixture.ts";
+import { pdfWithPages, tinyPdf } from "./pdf-fixture.ts";
 
 describe("readPdf", () => {
   test("pulls the text out for the summariser", async () => {
@@ -13,6 +13,31 @@ describe("readPdf", () => {
 
   test("has no title when the PDF carries no metadata", async () => {
     expect((await readPdf(tinyPdf())).title).toBeNull();
+  });
+
+  test("reads at most the first five pages", async () => {
+    const pages = Array.from({ length: 9 }, (_, i) => `Page number ${i + 1} content`);
+    const { pageCount, pagesRead, excerpt } = await readPdf(pdfWithPages(pages));
+
+    // The card still reports the document's real length.
+    expect(pageCount).toBe(9);
+    expect(pagesRead).toBe(5);
+
+    expect(excerpt).toContain("Page number 1 content");
+    expect(excerpt).toContain("Page number 5 content");
+    // Anything past the cap is never parsed, so it cannot reach the model.
+    expect(excerpt).not.toContain("Page number 6 content");
+    expect(excerpt).not.toContain("Page number 9 content");
+  });
+
+  test("reads every page of a document shorter than the cap", async () => {
+    const { pageCount, pagesRead, excerpt } = await readPdf(
+      pdfWithPages(["First page here", "Second page here"]),
+    );
+
+    expect(pageCount).toBe(2);
+    expect(pagesRead).toBe(2);
+    expect(excerpt).toContain("Second page here");
   });
 
   test("rejects bytes that are not a PDF", async () => {

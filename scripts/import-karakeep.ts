@@ -60,7 +60,7 @@ console.log(`Found ${bookmarks.length} bookmark(s) in Karakeep.\n`);
 
 // --- Map ----------------------------------------------------------------
 
-const stats = { imported: 0, duplicate: 0, notALink: 0, archived: 0, queued: 0 };
+const stats = { imported: 0, duplicate: 0, notALink: 0, archived: 0, queued: 0, filed: 0 };
 const mapped = [];
 
 for (const bookmark of bookmarks) {
@@ -86,8 +86,9 @@ if (args["dry-run"]) {
     console.log(`    ${link.description ?? "(no description — would be summarised)"}`);
   }
   if (mapped.length > 10) console.log(`  … and ${mapped.length - 10} more`);
+  const listNames = new Set(mapped.map((link) => link.listName).filter(Boolean));
   console.log(
-    `\nWould import ${mapped.length} link(s); ` +
+    `\nWould import ${mapped.length} link(s) into ${listNames.size} list(s); ` +
       `skipping ${stats.notALink} non-link and ${stats.archived} archived.`,
   );
   process.exit(0);
@@ -98,6 +99,19 @@ if (args["dry-run"]) {
 const { db, sqlite } = createDb();
 const store = createStore(db, sqlite);
 const enricher = createEnricher({ store, summariser: createSummariser() });
+
+// Lists are created on first sight and reused after, so the import makes one
+// row per name however many bookmarks reference it.
+const listIds = new Map<string, number>();
+
+function listIdFor(name: string, icon: string | null): number {
+  const existing = listIds.get(name);
+  if (existing !== undefined) return existing;
+
+  const { id } = store.createList(name, icon);
+  listIds.set(name, id);
+  return id;
+}
 
 for (const link of mapped) {
   let saved;
@@ -111,12 +125,27 @@ for (const link of mapped) {
     continue;
   }
 
+  const listId = link.listName ? listIdFor(link.listName, link.listIcon) : null;
+
   if (!saved.created) {
     stats.duplicate += 1;
+
+    // A re-run over links that are already here still has work to do: an
+    // earlier import may have predated lists entirely. Only ever fills a gap,
+    // so a link filed by hand since is never moved back.
+    if (listId !== null && saved.link.listId === null) {
+      store.assign(saved.link.id, listId);
+      stats.filed += 1;
+    }
     continue;
   }
 
   stats.imported += 1;
+
+  if (listId !== null) {
+    store.assign(saved.link.id, listId);
+    stats.filed += 1;
+  }
 
   // "Needs a description" is the deciding question: anything left pending goes
   // through the normal enrichment queue, which fetches the page and asks
@@ -140,6 +169,7 @@ console.log(
   `\nImported ${stats.imported}, skipped ${stats.duplicate} already present, ` +
     `${stats.notALink} not links, ${stats.archived} archived.`,
 );
+console.log(`Filed ${stats.filed} link(s) across ${listIds.size} list(s).`);
 
 if (stats.queued > 0) {
   const cost = config.mistralApiKey ? "" : " (no MISTRAL_API_KEY set — page descriptions only)";

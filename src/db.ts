@@ -10,6 +10,23 @@ import { config } from "./config.ts";
  * the reader cares about: a link is inserted immediately on save (so the share
  * sheet can dismiss at once) and the title/description/image land later.
  */
+/**
+ * A named group of links — "Clothes", "Tech". One list per link rather than a
+ * join table: that is what the data coming out of Karakeep actually looked like
+ * (not one bookmark of 118 sat in two lists), and it is what the single-select
+ * on each card can express. A many-to-many table backing a one-of-many UI would
+ * be storing a relationship nothing can enter or show.
+ */
+export const lists = sqliteTable("lists", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  /** A single emoji, shown before the name. Karakeep had one on every list. */
+  icon: text("icon"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export type List = typeof lists.$inferSelect;
+
 export const links = sqliteTable("links", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   url: text("url").notNull().unique(),
@@ -25,6 +42,8 @@ export const links = sqliteTable("links", {
   error: text("error"),
   createdAt: integer("created_at").notNull(),
   enrichedAt: integer("enriched_at"),
+  /** Null means unfiled, which is the resting state for most links. */
+  listId: integer("list_id").references(() => lists.id, { onDelete: "set null" }),
 });
 
 export type Link = typeof links.$inferSelect;
@@ -38,6 +57,13 @@ export type Link = typeof links.$inferSelect;
  * once and the triggers below keep the index in step with writes.
  */
 const SCHEMA = `
+CREATE TABLE IF NOT EXISTS lists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  icon TEXT,
+  created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS links (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   url TEXT NOT NULL UNIQUE,
@@ -48,10 +74,12 @@ CREATE TABLE IF NOT EXISTS links (
   status TEXT NOT NULL DEFAULT 'pending',
   error TEXT,
   created_at INTEGER NOT NULL,
-  enriched_at INTEGER
+  enriched_at INTEGER,
+  list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS links_created_at_idx ON links (created_at DESC);
+CREATE INDEX IF NOT EXISTS links_list_id_idx ON links (list_id);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
   title, description, site_name, url,
@@ -85,12 +113,27 @@ export function openDatabase(path: string = config.databasePath): Database {
   sqlite.exec("PRAGMA journal_mode = WAL;");
   sqlite.exec("PRAGMA foreign_keys = ON;");
   sqlite.exec(SCHEMA);
+  addMissingColumns(sqlite);
   return sqlite;
+}
+
+/**
+ * `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so a
+ * database written before lists were added never gets the new column from
+ * SCHEMA above. SQLite has no `ADD COLUMN IF NOT EXISTS`, hence the lookup.
+ */
+function addMissingColumns(sqlite: Database): void {
+  const columns = sqlite.query<{ name: string }, []>("PRAGMA table_info(links)").all();
+
+  if (!columns.some((column) => column.name === "list_id")) {
+    sqlite.exec("ALTER TABLE links ADD COLUMN list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL;");
+    sqlite.exec("CREATE INDEX IF NOT EXISTS links_list_id_idx ON links (list_id);");
+  }
 }
 
 export function createDb(path?: string) {
   const sqlite = openDatabase(path);
-  return { sqlite, db: drizzle(sqlite, { schema: { links } }) };
+  return { sqlite, db: drizzle(sqlite, { schema: { links, lists } }) };
 }
 
 export type Db = ReturnType<typeof createDb>["db"];

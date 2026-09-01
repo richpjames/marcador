@@ -35,7 +35,25 @@ describe("mapBookmark", () => {
       imageUrl: "https://example.com/pasta.jpg",
       siteName: "Example Kitchen",
       createdAt: Date.parse("2025-03-14T09:26:53.000Z"),
+      listName: null,
+      listIcon: null,
     });
+  });
+
+  test("files the bookmark under its first Karakeep list", () => {
+    const mapped = mapBookmark(linkBookmark({ lists: [{ name: "Recipes", icon: "🍝" }] }));
+
+    expect(mapped!.listName).toBe("Recipes");
+    expect(mapped!.listIcon).toBe("🍝");
+  });
+
+  test("keeps only the first list, because marcador files a link once", () => {
+    const mapped = mapBookmark(
+      linkBookmark({ lists: [{ name: "Recipes" }, { name: "Italy", icon: "🇮🇹" }] }),
+    );
+
+    expect(mapped!.listName).toBe("Recipes");
+    expect(mapped!.listIcon).toBeNull();
   });
 
   test("prefers what the user wrote over what the crawler found", () => {

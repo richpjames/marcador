@@ -3,6 +3,16 @@
 // failed script degrades to plain HTML rather than a dead page.
 
 (() => {
+  // Lets the stylesheet hide the fallback submit buttons that exist only for
+  // the scriptless case. Set first so nothing below can leave it half-applied.
+  document.documentElement.classList.add("js");
+
+  // Filing a link is a one-touch action on a phone: pick a list and it saves.
+  // The "Move" button beside each select is what runs when this never loads.
+  for (const select of document.querySelectorAll("select[data-autosubmit]")) {
+    select.addEventListener("change", () => select.form.requestSubmit());
+  }
+
   const search = document.getElementById("q");
 
   if (search) {

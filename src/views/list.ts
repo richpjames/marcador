@@ -1,13 +1,22 @@
 import type { Link } from "../db.ts";
+import type { ListWithCount } from "../store.ts";
 import { hostOf } from "../url.ts";
 import { html, type Html } from "./html.ts";
 
 export function listPage({
   items,
+  lists,
+  activeList,
+  total,
   query,
   error,
 }: {
   items: Link[];
+  lists: ListWithCount[];
+  /** Which list is being filtered to, if any. */
+  activeList?: ListWithCount;
+  /** Count across every list, for the "All" chip. */
+  total: number;
   query: string;
   error?: string;
 }): Html {
@@ -26,24 +35,96 @@ export function listPage({
       <button type="submit">Save</button>
     </form>
 
+    ${nav({ lists, activeList, total, query })}
+
     ${query
       ? html`<p class="results-for">
           ${items.length} result${items.length === 1 ? "" : "s"} for
-          <strong>${query}</strong> · <a href="/">clear</a>
+          <strong>${query}</strong>${activeList ? html` in ${activeList.name}` : null} ·
+          <a href="${activeList ? `/?list=${activeList.id}` : "/"}">clear</a>
         </p>`
       : null}
 
-    ${items.length === 0 ? empty(query) : html`<ul class="links">${items.map(card)}</ul>`}
+    ${items.length === 0
+      ? empty(query, activeList)
+      : html`<ul class="links">${items.map((item) => card(item, lists))}</ul>`}
   `;
 }
 
-function empty(query: string): Html {
-  return query
-    ? html`<p class="empty">Nothing matches “${query}”.</p>`
-    : html`<p class="empty">No links yet. Paste one above, or share to marcador from Safari.</p>`;
+/**
+ * The list chips, plus the form for making a new one. Every chip is a plain
+ * link with a `list` query parameter, so filtering works with no JavaScript and
+ * each filtered view is its own bookmarkable URL.
+ */
+function nav({
+  lists,
+  activeList,
+  total,
+  query,
+}: {
+  lists: ListWithCount[];
+  activeList?: ListWithCount;
+  total: number;
+  query: string;
+}): Html {
+  // Carried through so switching lists does not silently drop the search.
+  const q = query ? `&q=${encodeURIComponent(query)}` : "";
+
+  return html`
+    <nav class="lists" aria-label="Lists">
+      <a class="chip ${activeList ? "" : "is-active"}" href="/${query ? `?q=${encodeURIComponent(query)}` : ""}">
+        All <span class="count">${total}</span>
+      </a>
+
+      ${lists.map(
+        (list) => html`
+          <a
+            class="chip ${activeList?.id === list.id ? "is-active" : ""}"
+            href="/?list=${list.id}${q}"
+          >
+            ${list.icon ? html`<span aria-hidden="true">${list.icon}</span>` : null} ${list.name}
+            <span class="count">${list.count}</span>
+          </a>
+        `,
+      )}
+
+      ${activeList
+        ? html`
+            <form class="delete-list" action="/lists/${activeList.id}/delete" method="post">
+              <button
+                type="submit"
+                title="Delete the ${activeList.name} list"
+                aria-label="Delete the ${activeList.name} list. Its links are kept."
+              >
+                Delete list
+              </button>
+            </form>
+          `
+        : null}
+
+      <form class="chip new-list" action="/lists" method="post">
+        <input
+          type="text"
+          name="name"
+          placeholder="+ New list"
+          required
+          maxlength="40"
+          autocomplete="off"
+          aria-label="Name for a new list"
+        />
+      </form>
+    </nav>
+  `;
 }
 
-function card(link: Link): Html {
+function empty(query: string, activeList?: ListWithCount): Html {
+  if (query) return html`<p class="empty">Nothing matches “${query}”.</p>`;
+  if (activeList) return html`<p class="empty">Nothing in ${activeList.name} yet.</p>`;
+
+  return html`<p class="empty">No links yet. Paste one above, or share to marcador from Safari.</p>`;
+}
+
+function card(link: Link, lists: ListWithCount[]): Html {
   // A pending link is rendered as itself rather than hidden, so a share from
   // the phone shows up in the list straight away and fills in as it enriches.
   const pending = link.status === "pending";
@@ -74,12 +155,39 @@ function card(link: Link): Html {
             ${formatDate(link.createdAt)}
           </time>
         </p>
+
+        ${picker(link, lists)}
       </div>
 
       <form class="delete" action="/links/${link.id}/delete" method="post">
         <button type="submit" aria-label="Delete ${link.title ?? link.url}" title="Delete">×</button>
       </form>
     </li>
+  `;
+}
+
+/**
+ * Filing control on each card. A `<select>` inside its own form, with a submit
+ * button that only appears when scripting is off — app.js submits on change,
+ * but the button is the fallback that keeps this working without it.
+ */
+function picker(link: Link, lists: ListWithCount[]): Html {
+  if (lists.length === 0) return html``;
+
+  return html`
+    <form class="card-list" action="/links/${link.id}/list" method="post">
+      <select name="list" aria-label="List for ${link.title ?? link.url}" data-autosubmit>
+        <option value="" ${link.listId === null ? "selected" : ""}>Unfiled</option>
+        ${lists.map(
+          (list) => html`
+            <option value="${list.id}" ${link.listId === list.id ? "selected" : ""}>
+              ${list.icon ? `${list.icon} ` : ""}${list.name}
+            </option>
+          `,
+        )}
+      </select>
+      <button type="submit" class="no-js">Move</button>
+    </form>
   `;
 }
 

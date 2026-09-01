@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { join } from "node:path";
 import type { Store } from "./store.ts";
 import type { Enricher } from "./enrich.ts";
@@ -105,14 +105,53 @@ export function createApp({ store, enricher }: AppOptions) {
 
   app.get("/", (c) => {
     const query = (c.req.query("q") ?? "").trim();
-    const items = query ? store.search(query) : store.list();
+    const lists = store.allLists();
+    const activeList = lists.find((list) => list.id === Number(c.req.query("list")));
+    const listId = activeList?.id;
+
+    const items = query ? store.search(query, { listId }) : store.list({ listId });
 
     return c.html(
       layout({
-        title: query ? `${query} · marcador` : "marcador",
-        body: listPage({ items, query, error: c.req.query("error") }),
+        title: pageTitle(query, activeList?.name),
+        body: listPage({
+          items,
+          lists,
+          activeList,
+          total: store.count(),
+          query,
+          error: c.req.query("error"),
+        }),
       }),
     );
+  });
+
+  app.post("/lists", async (c) => {
+    const form = await c.req.parseBody();
+
+    try {
+      store.createList(String(form.name ?? ""), String(form.icon ?? "") || null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not make that list.";
+      return c.redirect(`/?error=${encodeURIComponent(message)}`);
+    }
+
+    return c.redirect(backTo(c));
+  });
+
+  app.post("/lists/:id/delete", (c) => {
+    // The links stay; `on delete set null` unfiles them.
+    store.removeList(Number(c.req.param("id")));
+    return c.redirect("/");
+  });
+
+  /** Files one link under a list, or unfiles it when the value is empty. */
+  app.post("/links/:id/list", async (c) => {
+    const form = await c.req.parseBody();
+    const raw = String(form.list ?? "");
+
+    store.assign(Number(c.req.param("id")), raw === "" ? null : Number(raw));
+    return c.redirect(backTo(c));
   });
 
   /** Browser form post. Redirects back to the list. */
@@ -148,8 +187,12 @@ export function createApp({ store, enricher }: AppOptions) {
 
   app.get("/api/links", (c) => {
     const query = (c.req.query("q") ?? "").trim();
-    return c.json({ links: query ? store.search(query) : store.list() });
+    const listId = c.req.query("list") ? Number(c.req.query("list")) : undefined;
+
+    return c.json({ links: query ? store.search(query, { listId }) : store.list({ listId }) });
   });
+
+  app.get("/api/lists", (c) => c.json({ lists: store.allLists() }));
 
   /** Lets the list poll a pending card until its description lands. */
   app.get("/api/links/:id", (c) => {
@@ -186,4 +229,26 @@ export function createApp({ store, enricher }: AppOptions) {
 /** Only ever redirect within this app — never to an attacker-supplied host. */
 function safeNext(next: string): string {
   return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
+
+function pageTitle(query: string, listName?: string): string {
+  if (query) return `${query} · marcador`;
+  return listName ? `${listName} · marcador` : "marcador";
+}
+
+/**
+ * Sends a form post back to the view it came from, so filing a link while
+ * filtered to "Tech" does not bounce you back to the top of "All". Only the
+ * path and query are reused, never the host, so this cannot leave the app.
+ */
+function backTo(c: Context): string {
+  const referer = c.req.header("referer");
+  if (!referer) return "/";
+
+  try {
+    const { pathname, search } = new URL(referer);
+    return safeNext(`${pathname}${search}`);
+  } catch {
+    return "/";
+  }
 }

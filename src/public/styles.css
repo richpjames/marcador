@@ -177,3 +177,77 @@ button[type="submit"] {
 }
 .login h1 { margin: 0 0 0.5rem; font-size: 1.5rem; letter-spacing: -0.02em; }
 .login label { font-size: 0.875rem; color: var(--muted); }
+
+/* --- lists ----------------------------------------------------------- */
+
+.lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1.25rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chip .count { color: var(--muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.chip.is-active .count { color: rgba(255, 255, 255, 0.75); }
+
+/* The new-list field is a chip too, so it sits on the same line as the rest
+   rather than starting a row of its own. */
+.new-list { padding: 0; border: 0; background: none; }
+.new-list input {
+  width: 8.5rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.875rem;
+}
+.new-list input:focus { border-style: solid; border-color: var(--accent); outline: none; }
+
+.delete-list button {
+  background: none;
+  border: 0;
+  padding: 0.3rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  border-radius: 999px;
+}
+.delete-list button:hover { color: var(--danger); }
+
+/* Sits under the meta line on each card. Muted until hovered or focused, so a
+   long list of cards does not read as a wall of dropdowns. */
+.card-list { margin: 0.45rem 0 0; display: flex; gap: 0.35rem; align-items: center; }
+.card-list select {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  padding: 0.15rem 0.25rem;
+  max-width: 12rem;
+}
+.card-list select:hover,
+.card-list select:focus { border-color: var(--border); color: var(--text); outline: none; }
+
+/* app.js submits the select on change; the button is the no-script fallback. */
+.js .no-js { display: none; }

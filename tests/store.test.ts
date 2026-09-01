@@ -72,6 +72,82 @@ describe("search", () => {
   });
 });
 
+describe("lists", () => {
+  test("reuses a list of the same name rather than making a second", () => {
+    const first = store.createList("Tech", "📺");
+    const second = store.createList("  Tech  ");
+
+    expect(second.id).toBe(first.id);
+    // The icon from the first creation survives the second call.
+    expect(second.icon).toBe("📺");
+    expect(store.allLists()).toHaveLength(1);
+  });
+
+  test("refuses a list with no name", () => {
+    expect(() => store.createList("   ")).toThrow();
+  });
+
+  test("counts the links filed under each list, busiest first", () => {
+    const tech = store.createList("Tech");
+    const clothes = store.createList("Clothes");
+    store.createList("Empty");
+
+    for (const url of ["https://a.example", "https://b.example", "https://c.example"]) {
+      store.assign(store.save(url).link.id, tech.id);
+    }
+    store.assign(store.save("https://d.example").link.id, clothes.id);
+
+    expect(store.allLists().map((list) => [list.name, list.count])).toEqual([
+      ["Tech", 3],
+      ["Clothes", 1],
+      ["Empty", 0],
+    ]);
+  });
+
+  test("filters the library down to one list", () => {
+    const tech = store.createList("Tech");
+    const filed = store.save("https://filed.example").link;
+    store.save("https://unfiled.example");
+    store.assign(filed.id, tech.id);
+
+    expect(store.list({ listId: tech.id }).map((l) => l.url)).toEqual(["https://filed.example/"]);
+    expect(store.list()).toHaveLength(2);
+  });
+
+  test("filters search results by list too", () => {
+    const tech = store.createList("Tech");
+    const a = store.save("https://a.example/rust").link;
+    const b = store.save("https://b.example/rust").link;
+    store.markReady(a.id, { title: "Rust ownership", description: "Borrowing" });
+    store.markReady(b.id, { title: "Rust ownership elsewhere", description: "Borrowing" });
+    store.assign(a.id, tech.id);
+
+    expect(store.search("rust")).toHaveLength(2);
+    expect(store.search("rust", { listId: tech.id }).map((l) => l.id)).toEqual([a.id]);
+  });
+
+  test("unfiles a link when assigned null", () => {
+    const tech = store.createList("Tech");
+    const link = store.save("https://example.com/x").link;
+
+    store.assign(link.id, tech.id);
+    expect(store.get(link.id)!.listId).toBe(tech.id);
+
+    store.assign(link.id, null);
+    expect(store.get(link.id)!.listId).toBeNull();
+  });
+
+  test("deleting a list keeps its links and unfiles them", () => {
+    const tech = store.createList("Tech");
+    const link = store.save("https://example.com/keep").link;
+    store.assign(link.id, tech.id);
+
+    expect(store.removeList(tech.id)).toBe(true);
+    expect(store.get(link.id)!.listId).toBeNull();
+    expect(store.list()).toHaveLength(1);
+  });
+});
+
 describe("toFtsQuery", () => {
   test("quotes each term and makes it a prefix match", () => {
     expect(toFtsQuery("rust ownership")).toBe('"rust"* "ownership"*');

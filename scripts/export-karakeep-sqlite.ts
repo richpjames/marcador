@@ -56,6 +56,21 @@ const rows = db
   )
   .all();
 
+const listRows = db
+  .query<{ bookmarkId: string; name: string; icon: string | null }, []>(
+    `select b.bookmarkId, l.name, l.icon
+       from bookmarksInLists b
+       join bookmarkLists l on l.id = b.listId`,
+  )
+  .all();
+
+const listsByBookmark = new Map<string, { name: string; icon: string | null }[]>();
+for (const { bookmarkId, name, icon } of listRows) {
+  const entry = listsByBookmark.get(bookmarkId) ?? [];
+  entry.push({ name, icon });
+  listsByBookmark.set(bookmarkId, entry);
+}
+
 const tagRows = db
   .query<{ bookmarkId: string; name: string }, []>(
     `select t.bookmarkId, g.name
@@ -83,6 +98,7 @@ const bookmarks: KarakeepBookmark[] = rows.map((row) => ({
   archived: row.archived === 1,
   favourited: row.favourited === 1,
   tags: tagsByBookmark.get(row.id) ?? [],
+  lists: listsByBookmark.get(row.id) ?? [],
   content:
     row.type === "link" && row.url
       ? {
@@ -101,9 +117,10 @@ await Bun.write(outPath, `${JSON.stringify({ bookmarks }, null, 2)}\n`);
 db.close();
 
 const links = bookmarks.filter((b) => b.content.type === "link").length;
+const filed = bookmarks.filter((b) => (b.lists?.length ?? 0) > 0).length;
 console.log(
   `Wrote ${bookmarks.length} bookmark(s) to ${outPath} ` +
-    `(${links} link(s), ${bookmarks.length - links} other).`,
+    `(${links} link(s), ${bookmarks.length - links} other, ${filed} in a list).`,
 );
 
 function parseArgs(argv: string[]): Record<string, string | undefined> {

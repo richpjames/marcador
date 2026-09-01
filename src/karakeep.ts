@@ -24,6 +24,11 @@ export interface KarakeepBookmark {
   archived?: boolean;
   favourited?: boolean;
   tags?: { name: string }[];
+  /**
+   * Which lists the bookmark sits in. Karakeep allows several; marcador has one
+   * list per link, so only the first survives — see `mapBookmark`.
+   */
+  lists?: { name: string; icon?: string | null }[];
   content:
     | {
         type: "link";
@@ -45,13 +50,21 @@ export interface MappedLink {
   imageUrl: string | null;
   siteName: string | null;
   createdAt: number;
+  /** The list to file this under, by name. Null means unfiled. */
+  listName: string | null;
+  listIcon: string | null;
 }
 
 /**
- * Karakeep keeps far more per bookmark than marcador does — tags, notes,
- * archived state, highlights, full-page archives. This is where that is
- * deliberately dropped rather than half-modelled: marcador v1 has no tags and no
- * archive, so carrying the fields would mean storing data nothing can show.
+ * Karakeep keeps far more per bookmark than marcador does — tags, archived
+ * state, highlights, full-page archives. This is where that is deliberately
+ * dropped rather than half-modelled: marcador has no tags and no archive, so
+ * carrying the fields would mean storing data nothing can show.
+ *
+ * Lists *are* carried, but flattened to one. Karakeep permits a bookmark in
+ * several lists and marcador does not, so a bookmark in two would lose the
+ * second — worth knowing, even though no bookmark in the migration this was
+ * written for was in more than one.
  *
  * Returns null for anything that is not a link (Karakeep also stores plain text
  * notes and uploaded files), so the caller can count what it skipped.
@@ -76,6 +89,8 @@ export function mapBookmark(bookmark: KarakeepBookmark): MappedLink | null {
     // A bookmark with an unparseable date still belongs in the list; putting it
     // at "now" is less wrong than dropping it.
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+    listName: firstOf(bookmark.lists?.[0]?.name),
+    listIcon: firstOf(bookmark.lists?.[0]?.icon),
   };
 }
 

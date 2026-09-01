@@ -188,3 +188,115 @@ describe("the list page", () => {
     expect(store.list()).toHaveLength(0);
   });
 });
+
+describe("lists", () => {
+  test("makes a list from the nav form and shows it as a chip", async () => {
+    const cookie = await signIn();
+
+    const response = await app.request("/lists", {
+      method: "POST",
+      headers: { ...BROWSER, cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ name: "Tech", icon: "📺" }),
+    });
+
+    expect(response.status).toBe(302);
+
+    const body = await (await app.request("/", { headers: { ...BROWSER, cookie } })).text();
+    expect(body).toContain("Tech");
+    expect(body).toContain("📺");
+  });
+
+  test("files a link through the card's select", async () => {
+    const cookie = await signIn();
+    const list = store.createList("Tech");
+    const { link } = store.save("https://example.com/rust");
+
+    const response = await app.request(`/links/${link.id}/list`, {
+      method: "POST",
+      headers: { ...BROWSER, cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ list: String(list.id) }),
+    });
+
+    expect(response.status).toBe(302);
+    expect(store.get(link.id)!.listId).toBe(list.id);
+  });
+
+  test("an empty value unfiles the link", async () => {
+    const cookie = await signIn();
+    const list = store.createList("Tech");
+    const { link } = store.save("https://example.com/rust");
+    store.assign(link.id, list.id);
+
+    await app.request(`/links/${link.id}/list`, {
+      method: "POST",
+      headers: { ...BROWSER, cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ list: "" }),
+    });
+
+    expect(store.get(link.id)!.listId).toBeNull();
+  });
+
+  test("returns you to the list you were filtered to, not the top of All", async () => {
+    const cookie = await signIn();
+    const list = store.createList("Tech");
+    const { link } = store.save("https://example.com/rust");
+
+    const response = await app.request(`/links/${link.id}/list`, {
+      method: "POST",
+      headers: {
+        ...BROWSER,
+        cookie,
+        "content-type": "application/x-www-form-urlencoded",
+        referer: `https://marcador.example/?list=${list.id}`,
+      },
+      body: new URLSearchParams({ list: String(list.id) }),
+    });
+
+    expect(response.headers.get("location")).toBe(`/?list=${list.id}`);
+  });
+
+  test("never redirects off-site, whatever the referer claims", async () => {
+    const cookie = await signIn();
+    const { link } = store.save("https://example.com/rust");
+
+    const response = await app.request(`/links/${link.id}/list`, {
+      method: "POST",
+      headers: {
+        ...BROWSER,
+        cookie,
+        "content-type": "application/x-www-form-urlencoded",
+        referer: "https://evil.example/steal",
+      },
+      body: new URLSearchParams({ list: "" }),
+    });
+
+    // Only the path is reused, so an attacker-controlled host cannot survive.
+    expect(response.headers.get("location")).toBe("/steal");
+  });
+
+  test("?list= narrows the page to that list", async () => {
+    const cookie = await signIn();
+    const list = store.createList("Tech");
+    const filed = store.save("https://example.com/filed").link;
+    store.save("https://example.com/unfiled");
+    store.markReady(filed.id, { title: "Filed away" });
+    store.assign(filed.id, list.id);
+
+    const body = await (
+      await app.request(`/?list=${list.id}`, { headers: { ...BROWSER, cookie } })
+    ).text();
+
+    expect(body).toContain("Filed away");
+    expect(body).not.toContain("example.com/unfiled");
+  });
+
+  test("serves the lists over the API for the share extension", async () => {
+    store.createList("Tech", "📺");
+    const response = await app.request("/api/lists", { headers: BEARER });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      lists: [{ id: expect.any(Number), name: "Tech", icon: "📺", createdAt: expect.any(Number), count: 0 }],
+    });
+  });
+});

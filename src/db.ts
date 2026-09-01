@@ -79,7 +79,6 @@ CREATE TABLE IF NOT EXISTS links (
 );
 
 CREATE INDEX IF NOT EXISTS links_created_at_idx ON links (created_at DESC);
-CREATE INDEX IF NOT EXISTS links_list_id_idx ON links (list_id);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
   title, description, site_name, url,
@@ -121,14 +120,19 @@ export function openDatabase(path: string = config.databasePath): Database {
  * `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so a
  * database written before lists were added never gets the new column from
  * SCHEMA above. SQLite has no `ADD COLUMN IF NOT EXISTS`, hence the lookup.
+ *
+ * The index on that column lives here rather than in SCHEMA for the same
+ * reason: run against an existing database, SCHEMA would be indexing a column
+ * that does not exist yet and the process would die on boot.
  */
 function addMissingColumns(sqlite: Database): void {
   const columns = sqlite.query<{ name: string }, []>("PRAGMA table_info(links)").all();
 
   if (!columns.some((column) => column.name === "list_id")) {
     sqlite.exec("ALTER TABLE links ADD COLUMN list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL;");
-    sqlite.exec("CREATE INDEX IF NOT EXISTS links_list_id_idx ON links (list_id);");
   }
+
+  sqlite.exec("CREATE INDEX IF NOT EXISTS links_list_id_idx ON links (list_id);");
 }
 
 export function createDb(path?: string) {

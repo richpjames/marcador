@@ -156,6 +156,10 @@ embed_phase.add_file_reference(ext_target.product_reference).settings =
 # for Catalyst. Capacitor generates the app iOS-only, so flip it here rather
 # than making it a hand-click that the next `cap add` silently wipes.
 app_target.build_configurations.each do |config|
+  # Capacitor names the product "App", so the bundle on disk is App.app whatever
+  # the display name says. Two Capacitor apps then collide in /Applications —
+  # and On The Beach is one — so give this one its own filename.
+  config.build_settings["PRODUCT_NAME"] = APP_DISPLAY_NAME
   config.build_settings["SUPPORTS_MACCATALYST"] = "YES"
   config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = DEPLOYMENT_TARGET
   config.build_settings["CODE_SIGN_STYLE"] = "Automatic"

@@ -10,3 +10,4 @@ data/
 ios/
 dist/
 native/ShareExtension/Config.xcconfig
+build/

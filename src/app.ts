@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import { join } from "node:path";
 import { config } from "./config.ts";
-import { pathForStoredFile, storePdf, urlForStoredFile } from "./files.ts";
+import { unlink } from "node:fs/promises";
+import { pathForStoredFile, storePdf, storedNameFromUrl, urlForStoredFile } from "./files.ts";
 import { looksLikePdf } from "./pdf.ts";
 import type { Store } from "./store.ts";
 import type { Enricher } from "./enrich.ts";
@@ -203,9 +204,9 @@ export function createApp({ store, enricher, filesDir }: AppOptions) {
     });
   });
 
-  app.post("/links/:id/delete", (c) => {
-    store.remove(Number(c.req.param("id")));
-    return c.redirect("/");
+  app.post("/links/:id/delete", async (c) => {
+    await removeLink(Number(c.req.param("id")));
+    return c.redirect(backTo(c));
   });
 
   // -------------------------------------------------------------------------
@@ -258,10 +259,35 @@ export function createApp({ store, enricher, filesDir }: AppOptions) {
     return link ? c.json(link) : c.json({ error: "Not found" }, 404);
   });
 
-  app.delete("/api/links/:id", (c) => {
-    const removed = store.remove(Number(c.req.param("id")));
+  app.delete("/api/links/:id", async (c) => {
+    const removed = await removeLink(Number(c.req.param("id")));
     return removed ? c.json({ ok: true }) : c.json({ error: "Not found" }, 404);
   });
+
+  /**
+   * Deletes a link, and the uploaded file behind it when there is one.
+   * Without this the bytes outlive the row and the volume fills with PDFs
+   * nothing references — and since files are named by their content hash, one
+   * file belongs to exactly one link, so there is no other row to orphan.
+   */
+  async function removeLink(id: number): Promise<boolean> {
+    const link = store.get(id);
+    if (!link) return false;
+
+    const removed = store.remove(id);
+    if (!removed) return false;
+
+    const name = link.kind === "file" ? storedNameFromUrl(link.url) : null;
+    const path = name && filesDir ? pathForStoredFile(name, filesDir) : null;
+
+    if (path) {
+      // A missing file must not fail the delete: the row is already gone, and
+      // reporting an error would invite a retry that cannot succeed.
+      await unlink(path).catch(() => {});
+    }
+
+    return true;
+  }
 
   /**
    * Shared by the form post and the JSON API. Validates, writes the file, then

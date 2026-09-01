@@ -117,3 +117,41 @@ describe("enriching an uploaded PDF", () => {
     expect(store.get(id)!.error).toContain("missing");
   });
 });
+
+describe("deleting an uploaded PDF", () => {
+  test("takes the file off the volume too", async () => {
+    const { id, url } = (await (await upload(tinyPdf())).json()) as { id: number; url: string };
+    const stored = join(dir, url.slice("/files/".length));
+
+    expect(await Bun.file(stored).exists()).toBe(true);
+
+    const response = await app.request(`/api/links/${id}`, { method: "DELETE", headers: BEARER });
+
+    expect(response.status).toBe(200);
+    expect(store.get(id)).toBeUndefined();
+    // Otherwise the bytes outlive the row and the volume fills with PDFs
+    // nothing references.
+    expect(await Bun.file(stored).exists()).toBe(false);
+  });
+
+  test("still deletes the link when the file has already gone", async () => {
+    const { id } = (await (await upload(tinyPdf())).json()) as { id: number };
+    rmSync(dir, { recursive: true, force: true });
+
+    const response = await app.request(`/api/links/${id}`, { method: "DELETE", headers: BEARER });
+
+    expect(response.status).toBe(200);
+    expect(store.get(id)).toBeUndefined();
+  });
+
+  test("deleting an ordinary link touches no files", async () => {
+    const { id, url } = (await (await upload(tinyPdf())).json()) as { id: number; url: string };
+    const stored = join(dir, url.slice("/files/".length));
+    const link = store.save("https://example.com/ordinary").link;
+
+    await app.request(`/api/links/${link.id}`, { method: "DELETE", headers: BEARER });
+
+    expect(store.get(id)).toBeDefined();
+    expect(await Bun.file(stored).exists()).toBe(true);
+  });
+});

@@ -100,16 +100,26 @@ cp native/ShareExtension/Config.xcconfig.example native/ShareExtension/Config.xc
 bun run ios
 ```
 
-That regenerates `ios/`, wires the extension target in, and opens Xcode. Set
-your signing team on both the **App** and **ShareExtension** targets, then run.
-Choose **My Mac (Mac Catalyst)** for the Mac app — the same extension then shows
-up in the macOS share menu.
+That regenerates `ios/`, wires the extension target in, and opens Xcode. Then
+pick your device and run. Choose **My Mac (Mac Catalyst)** for the Mac app — the
+same extension shows up in the macOS share menu.
+
+Signing is set for you: the script reads the team from your one installed Apple
+Development certificate and applies it to both targets. With several accounts on
+the machine that is ambiguous, so name the one you want:
+
+```sh
+MARCADOR_DEV_TEAM=ABCDE12345 bun run ios
+```
 
 Two things that will bite you if you edit the config by hand:
 
 - **The URL needs the `https:/$()/host` escape.** xcconfig treats `//` as a
   comment and will silently truncate a normal URL to `https:`. The app now
   refuses to post rather than failing quietly, but the escape is still required.
+- **The token must match the server's `MARCADOR_TOKEN` exactly.** The extension
+  authenticates with it and nothing else, so a stale or placeholder value fails
+  as a 401 from inside the share sheet, where the error is easy to miss.
 - **`ios/` is disposable and gitignored.** Everything that makes it marcador
   lives in `capacitor.config.ts`, `native/`, and `scripts/add-share-extension.rb`.
   Never edit the generated project by hand; the next `bun run ios` deletes it.

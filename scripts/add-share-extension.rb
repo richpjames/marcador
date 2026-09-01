@@ -62,6 +62,27 @@ end
 
 project.main_group[EXT_NAME]&.remove_from_project
 
+# --- Signing team ------------------------------------------------------------
+# Xcode cannot sign either target without a team, and because ios/ is thrown
+# away and rebuilt on every run, setting it by hand in the UI lasts exactly
+# until the next one. MARCADOR_DEV_TEAM wins; otherwise the team is read off the
+# one installed Apple Development certificate, which is unambiguous on a machine
+# with a single developer account.
+def development_team
+  from_env = ENV["MARCADOR_DEV_TEAM"]
+  return from_env unless from_env.nil? || from_env.empty?
+
+  names = `security find-identity -v -p codesigning 2>/dev/null`
+            .scan(/"(Apple Development: [^"]+)"/).flatten.uniq
+  return nil unless names.length == 1
+
+  # The team id is the certificate's organisational unit.
+  subject = `security find-certificate -c "#{names.first}" -p 2>/dev/null | openssl x509 -noout -subject 2>/dev/null`
+  subject[/OU\s*=\s*([A-Z0-9]+)/, 1]
+end
+
+TEAM = development_team
+
 # --- Create the target -------------------------------------------------------
 ext_target = project.new_target(:app_extension, EXT_NAME, :ios, DEPLOYMENT_TARGET)
 
@@ -88,6 +109,7 @@ ext_target.build_configurations.each do |config|
     "TARGETED_DEVICE_FAMILY" => "1,2",
     "SKIP_INSTALL" => "YES",
     "CODE_SIGN_STYLE" => "Automatic",
+    "DEVELOPMENT_TEAM" => TEAM,
     "LD_RUNPATH_SEARCH_PATHS" =>
       "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks",
     # Catalyst is what puts marcador in the macOS share menu.
@@ -136,6 +158,8 @@ embed_phase.add_file_reference(ext_target.product_reference).settings =
 app_target.build_configurations.each do |config|
   config.build_settings["SUPPORTS_MACCATALYST"] = "YES"
   config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = DEPLOYMENT_TARGET
+  config.build_settings["CODE_SIGN_STYLE"] = "Automatic"
+  config.build_settings["DEVELOPMENT_TEAM"] = TEAM if TEAM
 end
 
 project.build_configurations.each do |config|
@@ -154,6 +178,13 @@ if File.exist?(app_info_plist)
   plist["CFBundleName"] = APP_DISPLAY_NAME
   plist["CFBundleDisplayName"] = APP_DISPLAY_NAME
   Xcodeproj::Plist.write_to_path(plist, app_info_plist)
+end
+
+if TEAM
+  puts "add-share-extension: signing with team #{TEAM}"
+else
+  puts "add-share-extension: no signing team found — set one on both targets in"
+  puts "                     Xcode, or export MARCADOR_DEV_TEAM before running."
 end
 
 puts "add-share-extension: wired #{EXT_NAME} (#{app_bundle_id}.#{EXT_NAME}) into #{APP_TARGET_NAME}"

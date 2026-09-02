@@ -112,6 +112,27 @@ the machine that is ambiguous, so name the one you want:
 MARCADOR_DEV_TEAM=ABCDE12345 bun run ios
 ```
 
+### The Mac share menu shows nothing
+
+Two causes, and the first is silent:
+
+- **A development build never appears.** Xcode signs it "Apple Development"
+  with the get-task-allow entitlement, so `spctl -a` rejects it and macOS will
+  not offer a share extension from a bundle it refuses to trust. Nothing warns
+  you; the entry is simply absent. `./scripts/release-mac.sh` produces the
+  notarised build that does work.
+- **The extension ships disabled.** Tick it under System Settings > General >
+  Login Items & Extensions > Sharing, or `pluginkit -e use -i
+  es.ricojam.marcador.ShareExtension`.
+
+Check what macOS actually offers rather than guessing from the browser:
+
+```sh
+pluginkit -m -v | grep marcador   # a leading "+" means enabled
+```
+
+Firefox caches the services list at launch, so restart it after either fix.
+
 Two things that will bite you if you edit the config by hand:
 
 - **The URL needs the `https:/$()/host` escape.** xcconfig treats `//` as a

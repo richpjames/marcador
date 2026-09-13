@@ -299,4 +299,68 @@ describe("lists", () => {
       lists: [{ id: expect.any(Number), name: "Tech", icon: "📺", createdAt: expect.any(Number), count: 0 }],
     });
   });
+
+  test("files a shared link under the list the share sheet picked", async () => {
+    const list = store.createList("Tech");
+
+    const response = await share("https://example.com/a", list.id);
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ created: true, listId: list.id });
+    expect(store.list({ listId: list.id })).toHaveLength(1);
+  });
+
+  test("leaves a share with no list picked unfiled", async () => {
+    const response = await share("https://example.com/a");
+
+    expect(await response.json()).toMatchObject({ listId: null });
+  });
+
+  test("moves an already-saved link when the share picks a different list", async () => {
+    const tech = store.createList("Tech");
+    const clothes = store.createList("Clothes");
+
+    await share("https://example.com/a", tech.id);
+    const second = await share("https://example.com/a", clothes.id);
+
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ created: false, listId: clothes.id });
+    expect(store.list()).toHaveLength(1);
+  });
+
+  test("re-sharing without a list leaves the link where it was filed", async () => {
+    const list = store.createList("Tech");
+
+    await share("https://example.com/a", list.id);
+    await share("https://example.com/a");
+
+    expect(store.list({ listId: list.id })).toHaveLength(1);
+  });
+
+  test("refuses a share naming a list that no longer exists", async () => {
+    const list = store.createList("Tech");
+    store.removeList(list.id);
+
+    const response = await share("https://example.com/a", list.id);
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/No such list/);
+    expect(store.list()).toHaveLength(0);
+  });
+
+  test("refuses a list id that is not a number", async () => {
+    const response = await share("https://example.com/a", "everything" as unknown as number);
+
+    expect(response.status).toBe(400);
+    expect(store.list()).toHaveLength(0);
+  });
 });
+
+/** A share-sheet save, with or without a list picked. */
+function share(url: string, listId?: number) {
+  return app.request("/api/links", {
+    method: "POST",
+    headers: { ...BEARER, "content-type": "application/json" },
+    body: JSON.stringify(listId === undefined ? { url } : { url, listId }),
+  });
+}

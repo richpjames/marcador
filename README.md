@@ -104,6 +104,11 @@ That regenerates `ios/`, wires the extension target in, and opens Xcode. Then
 pick your device and run. Choose **My Mac (Mac Catalyst)** for the Mac app — the
 same extension shows up in the macOS share menu.
 
+Sharing a link asks which list it is for, defaulting to the one you picked last
+time, since filing it afterwards means finding it again on another device. With
+no lists on the server there is nothing to ask, so the share stays what it was:
+tap marcador, see "Saved", carry on.
+
 Signing is set for you: the script reads the team from your one installed Apple
 Development certificate and applies it to both targets. With several accounts on
 the machine that is ambiguous, so name the one you want:
@@ -172,6 +177,9 @@ Receive URLs from share sheet
       Request Body (JSON): url = Shortcut Input
 ```
 
+Add `listId` to the body — the number from `GET /api/lists` — for a Shortcut that
+always files into the same list.
+
 ## Migrating from Karakeep
 
 ```sh
@@ -215,8 +223,9 @@ All routes need either a session cookie or `Authorization: Bearer <MARCADOR_TOKE
 
 | Route | Does |
 | --- | --- |
-| `POST /api/links` | `{"url": "..."}`. 201 when new, 200 when already saved. |
-| `GET /api/links` | Everything, or `?q=` to search. |
+| `POST /api/links` | `{"url": "...", "listId": 3}`. 201 when new, 200 when already saved. `listId` is optional and files the link as it saves; leave it out to save it unfiled. |
+| `GET /api/links` | Everything, or `?q=` to search, or `?list=` for one list. |
+| `GET /api/lists` | Every list with its link count. What the share sheet offers. |
 | `GET /api/links/:id` | One link. Poll it to watch `status` go `pending` → `ready`. |
 | `DELETE /api/links/:id` | Removes it. |
 | `GET /healthz` | No auth. For Coolify. |

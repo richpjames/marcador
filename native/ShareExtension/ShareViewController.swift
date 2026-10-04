@@ -56,13 +56,13 @@ final class ShareViewController: UIViewController {
         let providers = items.flatMap { $0.attachments ?? [] }
 
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-            if let url = try? await loadItem(from: provider, type: UTType.url.identifier) as? URL {
+            if let url = (try? await loadItem(from: provider, type: UTType.url.identifier)).flatMap(coerceToURL) {
                 return url
             }
         }
 
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-            if let text = try? await loadItem(from: provider, type: UTType.plainText.identifier) as? String,
+            if let text = (try? await loadItem(from: provider, type: UTType.plainText.identifier)).flatMap(coerceToText),
                let url = firstURL(in: text) {
                 return url
             }
@@ -78,6 +78,37 @@ final class ShareViewController: UIViewController {
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume(returning: item) }
             }
+        }
+    }
+
+    /// `loadItem` promises no particular class for what it hands back: the same
+    /// attachment can arrive as `NSURL`, `NSString` or `NSData` depending on the
+    /// host app and the platform. Firefox on the Mac delivers the page URL as
+    /// raw UTF-8 data, so anything stricter than "take every shape" reports a
+    /// perfectly good share as containing no link at all.
+    private func coerceToURL(_ item: NSSecureCoding?) -> URL? {
+        switch item {
+        case let url as URL:
+            return url
+        case let string as String:
+            return URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines))
+        case let data as Data:
+            return String(data: data, encoding: .utf8)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .flatMap(URL.init(string:))
+        default:
+            return nil
+        }
+    }
+
+    private func coerceToText(_ item: NSSecureCoding?) -> String? {
+        switch item {
+        case let string as String:
+            return string
+        case let data as Data:
+            return String(data: data, encoding: .utf8)
+        default:
+            return nil
         }
     }
 

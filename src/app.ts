@@ -215,14 +215,27 @@ export function createApp({ store, enricher, filesDir }: AppOptions) {
 
   app.post("/api/links", async (c) => {
     const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
-    const result = saveAndEnqueue(String((body as { url?: unknown }).url ?? ""));
+
+    // The share sheet sends the list the user picked. Checked before the save
+    // so a share naming a list that has since been deleted is a plain 400
+    // rather than a foreign-key error from SQLite.
+    const chosen = readListId((body as { listId?: unknown }).listId);
+    if (!chosen.ok) return c.json({ error: chosen.error }, 400);
+
+    const result = saveAndEnqueue(String((body as { url?: unknown }).url ?? ""), chosen.listId);
 
     if (!result.ok) return c.json({ error: result.error }, 400);
 
     // 200 rather than 201 on a duplicate, so the extension can say "already
     // saved" instead of reporting a second save that did not happen.
     return c.json(
-      { id: result.link.id, url: result.link.url, status: result.link.status, created: result.created },
+      {
+        id: result.link.id,
+        url: result.link.url,
+        status: result.link.status,
+        listId: result.link.listId,
+        created: result.created,
+      },
       result.created ? 201 : 200,
     );
   });
@@ -323,11 +336,25 @@ export function createApp({ store, enricher, filesDir }: AppOptions) {
     return { ok: true as const, link, created };
   }
 
-  function saveAndEnqueue(url: string) {
+  /**
+   * Reads the `listId` off a share. Absent, null or empty means unfiled, which
+   * is what the picker's first row and every older client send.
+   */
+  function readListId(raw: unknown): { ok: true; listId: null | number } | { ok: false; error: string } {
+    if (raw === undefined || raw === null || raw === "") return { ok: true, listId: null };
+
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "That list id is not a number." };
+    if (!store.allLists().some((list) => list.id === id)) return { ok: false, error: "No such list." };
+
+    return { ok: true, listId: id };
+  }
+
+  function saveAndEnqueue(url: string, listId: number | null = null) {
     if (!url.trim()) return { ok: false as const, error: "No URL given." };
 
     try {
-      const { link, created } = store.save(url);
+      const { link, created } = store.save(url, { listId });
       // Only enqueue new links: re-sharing something already saved should not
       // spend another Mistral call re-describing it.
       if (created) enricher.enqueue(link.id);

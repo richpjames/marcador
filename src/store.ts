@@ -12,6 +12,11 @@ export interface SaveOptions {
    * every link with the migration date and destroys the ordering.
    */
   createdAt?: number;
+  /**
+   * Files the link as it is saved, rather than leaving it unfiled for someone
+   * to move later. The share sheet picks this; null, the default, is "Unfiled".
+   */
+  listId?: number | null;
 }
 
 /** A list plus how many links are filed under it, for the nav counts. */
@@ -76,11 +81,32 @@ export function createStore(db: Db, sqlite: Database): Store {
       const url = normaliseUrl(rawUrl);
 
       const existing = db.select().from(links).where(eq(links.url, url)).get();
-      if (existing) return { link: existing, created: false };
+      if (existing) {
+        // Re-sharing something with a list picked is a request to file it
+        // there. Re-sharing without one is not a request to unfile it, so the
+        // null default leaves whatever list it is already in alone.
+        if (options.listId == null || options.listId === existing.listId) {
+          return { link: existing, created: false };
+        }
+
+        const moved = db
+          .update(links)
+          .set({ listId: options.listId })
+          .where(eq(links.id, existing.id))
+          .returning()
+          .get();
+
+        return { link: moved, created: false };
+      }
 
       const link = db
         .insert(links)
-        .values({ url, status: "pending", createdAt: options.createdAt ?? Date.now() })
+        .values({
+          url,
+          status: "pending",
+          listId: options.listId ?? null,
+          createdAt: options.createdAt ?? Date.now(),
+        })
         .returning()
         .get();
 

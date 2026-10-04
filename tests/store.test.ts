@@ -87,6 +87,40 @@ describe("lists", () => {
     expect(() => store.createList("   ")).toThrow();
   });
 
+  test("renames a list, trimming as it goes", () => {
+    const tech = store.createList("Tech", "📺");
+
+    const renamed = store.renameList(tech.id, "  Reading  ");
+
+    expect(renamed.name).toBe("Reading");
+    // The icon is untouched: only the name was asked for.
+    expect(renamed.icon).toBe("📺");
+    expect(store.allLists().map((list) => list.name)).toEqual(["Reading"]);
+  });
+
+  test("a rename to the name the list already has is a no-op, not a clash", () => {
+    const tech = store.createList("Tech");
+    store.createList("Clothes");
+
+    expect(store.renameList(tech.id, "Tech").name).toBe("Tech");
+    expect(store.allLists()).toHaveLength(2);
+  });
+
+  test("refuses a rename to a name another list already has", () => {
+    const tech = store.createList("Tech");
+    store.createList("Clothes");
+
+    expect(() => store.renameList(tech.id, "Clothes")).toThrow(/already exists/);
+    expect(store.allLists().map((list) => list.name).sort()).toEqual(["Clothes", "Tech"]);
+  });
+
+  test("refuses a rename to nothing, and to a list that is not there", () => {
+    const tech = store.createList("Tech");
+
+    expect(() => store.renameList(tech.id, "   ")).toThrow();
+    expect(() => store.renameList(tech.id + 1, "Whatever")).toThrow(/no such list/i);
+  });
+
   test("counts the links filed under each list, busiest first", () => {
     const tech = store.createList("Tech");
     const clothes = store.createList("Clothes");

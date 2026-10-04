@@ -54,6 +54,8 @@ export interface Store {
   allLists(): ListWithCount[];
   /** Idempotent: an existing list of the same name is returned, not duplicated. */
   createList(name: string, icon?: string | null): List;
+  /** Renames in place; throws when the name is blank, taken, or the id is unknown. */
+  renameList(id: number, name: string): List;
   removeList(id: number): boolean;
   /** Files a link under a list, or unfiles it with null. */
   assign(linkId: number, listId: number | null): boolean;
@@ -237,6 +239,26 @@ export function createStore(db: Db, sqlite: Database): Store {
         .values({ name: trimmed, icon: icon?.trim() || null, createdAt: Date.now() })
         .returning()
         .get();
+    },
+
+    renameList(id, name) {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error("A list needs a name.");
+
+      // Checked up front for a readable message: the same constraint exists in
+      // SQLite, but a UNIQUE violation surfaces as a raw dump.
+      const clash = db.select().from(lists).where(eq(lists.name, trimmed)).get();
+      if (clash && clash.id !== id) throw new Error("A list called that already exists.");
+
+      const renamed = db
+        .update(lists)
+        .set({ name: trimmed })
+        .where(eq(lists.id, id))
+        .returning()
+        .get();
+
+      if (!renamed) throw new Error("No such list.");
+      return renamed;
     },
 
     removeList(id) {

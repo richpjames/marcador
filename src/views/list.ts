@@ -98,6 +98,22 @@ function nav({
 
       ${activeList
         ? html`
+            <details class="rename-list" data-autofocus>
+              <summary title="Rename the ${activeList.name} list">Rename list</summary>
+              <form action="/lists/${activeList.id}/rename" method="post">
+                <input
+                  type="text"
+                  name="name"
+                  value="${activeList.name}"
+                  required
+                  maxlength="40"
+                  autocomplete="off"
+                  aria-label="New name for the ${activeList.name} list"
+                />
+                <button type="submit">Save</button>
+              </form>
+            </details>
+
             <form class="delete-list" action="/lists/${activeList.id}/delete" method="post">
               <button
                 type="submit"

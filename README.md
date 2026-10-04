@@ -133,6 +133,20 @@ pluginkit -m -v | grep marcador   # a leading "+" means enabled
 
 Firefox caches the services list at launch, so restart it after either fix.
 
+### Firefox says nothing here looks like a link
+
+The extension ran and found no URL it could read. Safari shares a `public.url`
+that arrives as an `NSURL`; Firefox on the Mac instead delivers the page URL as
+raw UTF-8 `NSData` — and `loadItem` promises no particular class for what it
+hands back, so the strict `as? URL` / `as? String` casts were a silent miss.
+The extraction now accepts a URL, string or data payload in either the URL slot
+or the text slot, which covers Firefox alongside Safari. If another host app
+ever reports the same, print what `loadItem` actually returned; its class is the
+whole clue.
+
+A build has to carry the fix, so re-run `./scripts/release-mac.sh`, replace the
+installed app, and restart Firefox.
+
 Two things that will bite you if you edit the config by hand:
 
 - **The URL needs the `https:/$()/host` escape.** xcconfig treats `//` as a

@@ -223,6 +223,37 @@ button[type="submit"] {
 }
 .new-list input:focus { border-style: solid; border-color: var(--accent); outline: none; }
 
+/* Rename opens a <details> rather than relying on script, so it works when
+   app.js never loads. The form floats over the cards rather than reflowing
+   the chip row, and hangs from the right edge so it cannot spill past a
+   phone's viewport. */
+.rename-list { position: relative; }
+.rename-list summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.rename-list summary::-webkit-details-marker { display: none; }
+.rename-list summary:hover { color: var(--accent); }
+.rename-list[open] summary { color: var(--accent); }
+.rename-list form {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+.rename-list input { width: 10rem; }
+
 .delete-list button {
   background: none;
   border: 0;

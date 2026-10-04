@@ -14,6 +14,14 @@
     control.addEventListener("change", () => control.form.requestSubmit());
   }
 
+  // Opening the rename popover selects the current name, so replacing it is
+  // just typing; without this file the field still works, just less handily.
+  for (const popover of document.querySelectorAll("details[data-autofocus]")) {
+    popover.addEventListener("toggle", () => {
+      if (popover.open) popover.querySelector("input")?.select();
+    });
+  }
+
   const search = document.getElementById("q");
 
   if (search) {

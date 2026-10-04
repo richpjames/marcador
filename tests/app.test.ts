@@ -206,6 +206,48 @@ describe("lists", () => {
     expect(body).toContain("📺");
   });
 
+  test("renames a list from the nav form and returns you to it", async () => {
+    const cookie = await signIn();
+    const list = store.createList("Tech");
+
+    const response = await app.request(`/lists/${list.id}/rename`, {
+      method: "POST",
+      headers: {
+        ...BROWSER,
+        cookie,
+        "content-type": "application/x-www-form-urlencoded",
+        referer: `https://marcador.example/?list=${list.id}`,
+      },
+      body: new URLSearchParams({ name: "Reading" }),
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(`/?list=${list.id}`);
+    expect(store.allLists().map((list) => list.name)).toEqual(["Reading"]);
+  });
+
+  test("a rejected rename bounces back to the list with the error", async () => {
+    const cookie = await signIn();
+    const tech = store.createList("Tech");
+    store.createList("Clothes");
+
+    const response = await app.request(`/lists/${tech.id}/rename`, {
+      method: "POST",
+      headers: { ...BROWSER, cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ name: "Clothes" }),
+    });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("location")!;
+    expect(location).toBe(
+      `/?list=${tech.id}&error=${encodeURIComponent("A list called that already exists.")}`,
+    );
+
+    const body = await (await app.request(location, { headers: { ...BROWSER, cookie } })).text();
+    expect(body).toContain("A list called that already exists.");
+    expect(store.allLists().map((list) => list.name).sort()).toEqual(["Clothes", "Tech"]);
+  });
+
   test("files a link through the card's select", async () => {
     const cookie = await signIn();
     const list = store.createList("Tech");

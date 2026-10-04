@@ -145,6 +145,22 @@ export function createApp({ store, enricher, filesDir }: AppOptions) {
     return c.redirect(backTo(c));
   });
 
+  app.post("/lists/:id/rename", async (c) => {
+    const id = Number(c.req.param("id"));
+    const form = await c.req.parseBody();
+
+    try {
+      store.renameList(id, String(form.name ?? ""));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not rename that list.";
+      // Back to the list itself, not the top of All, so a rejected rename does
+      // not also throw away the filter the user was looking at.
+      return c.redirect(`/?list=${id}&error=${encodeURIComponent(message)}`);
+    }
+
+    return c.redirect(backTo(c));
+  });
+
   app.post("/lists/:id/delete", (c) => {
     // The links stay; `on delete set null` unfiles them.
     store.removeList(Number(c.req.param("id")));

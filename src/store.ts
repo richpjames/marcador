@@ -44,6 +44,8 @@ export interface Store {
   get(id: number): Link | undefined;
   byUrl(url: string): Link | undefined;
   remove(id: number): boolean;
+  /** Retitles a link. Blank or null reverts to the automatic title. */
+  rename(id: number, title: string | null): boolean;
   markReady(id: number, fields: Partial<Pick<Link, "title" | "description" | "imageUrl" | "siteName">>): void;
   markFailed(id: number, message: string): void;
   pending(): Link[];
@@ -186,6 +188,20 @@ export function createStore(db: Db, sqlite: Database): Store {
 
     remove(id) {
       return db.delete(links).where(eq(links.id, id)).returning().all().length > 0;
+    },
+
+    rename(id, rawTitle) {
+      const link = db.select().from(links).where(eq(links.id, id)).get();
+      if (!link) return false;
+
+      // Same fallback rule as `saveFile`: a file's card has no host to fall
+      // back on, so a blank title would leave it showing a bare hash URL.
+      const title = rawTitle?.trim() || (link.kind === "file" ? link.fileName : null);
+
+      // The FTS update trigger reindexes the row, so the new title is
+      // searchable the moment this lands.
+      db.update(links).set({ title }).where(eq(links.id, id)).run();
+      return true;
     },
 
     markReady(id, fields) {

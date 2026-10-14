@@ -16,9 +16,21 @@
 
   // Opening the rename popover selects the current name, so replacing it is
   // just typing; without this file the field still works, just less handily.
+  // Escape puts the original value back and closes — a rename is only saved
+  // on Enter or the Save button, never by clicking away.
   for (const popover of document.querySelectorAll("details[data-autofocus]")) {
     popover.addEventListener("toggle", () => {
-      if (popover.open) popover.querySelector("input")?.select();
+      const input = popover.querySelector("input");
+      if (!input) return;
+      if (popover.open) {
+        input.select();
+      } else {
+        input.value = input.defaultValue;
+      }
+    });
+
+    popover.querySelector("input")?.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") popover.open = false;
     });
   }
 

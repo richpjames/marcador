@@ -15,6 +15,7 @@ sentence written by Mistral.
 - **Describe it** — Mistral reads the page and writes one sentence
 - **Show the page's image**, scraped from its OG tags
 - **Full-text search** across titles, descriptions and URLs (SQLite FTS5)
+- **Rename any entry** — the scraped title is a starting point, not the law
 - **Single-user auth** — a password for the browser, a bearer token for the share sheet
 
 Not included, on purpose: tags, folders, page archiving, multi-user accounts,

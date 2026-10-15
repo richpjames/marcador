@@ -182,6 +182,47 @@ describe("lists", () => {
   });
 });
 
+describe("rename", () => {
+  test("sets the title the caller asked for", () => {
+    const link = store.save("https://example.com/x").link;
+
+    expect(store.rename(link.id, "A better name")).toBe(true);
+    expect(store.get(link.id)!.title).toBe("A better name");
+  });
+
+  test("a blank title on a link clears it, so the card shows the URL", () => {
+    const link = store.save("https://example.com/x").link;
+    store.rename(link.id, "Temporary");
+
+    store.rename(link.id, "   ");
+
+    expect(store.get(link.id)!.title).toBeNull();
+  });
+
+  test("a blank title on a file falls back to its upload name", () => {
+    const { link } = store.saveFile({ storedName: "abc123.pdf", fileName: "Reading.pdf", size: 10 });
+    store.rename(link.id, "My reading list");
+    expect(store.get(link.id)!.title).toBe("My reading list");
+
+    store.rename(link.id, "");
+    expect(store.get(link.id)!.title).toBe("Reading.pdf");
+  });
+
+  test("reports false for a link that is not there", () => {
+    expect(store.rename(4242, "Ghost")).toBe(false);
+  });
+
+  test("the new title is searchable, because the FTS trigger follows the update", () => {
+    const link = store.save("https://example.com/x").link;
+    store.markReady(link.id, { title: "Old title", description: null, siteName: null, imageUrl: null });
+
+    store.rename(link.id, "Sourdough maintenance");
+
+    expect(store.search("sourdough").map((l) => l.id)).toEqual([link.id]);
+    expect(store.search("old title")).toHaveLength(0);
+  });
+});
+
 describe("toFtsQuery", () => {
   test("quotes each term and makes it a prefix match", () => {
     expect(toFtsQuery("rust ownership")).toBe('"rust"* "ownership"*');

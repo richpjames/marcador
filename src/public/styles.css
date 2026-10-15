@@ -265,9 +265,11 @@ button[type="submit"] {
 }
 .delete-list button:hover { color: var(--danger); }
 
-/* Sits under the meta line on each card. Muted until hovered or focused, so a
-   long list of cards does not read as a wall of dropdowns. */
-.card-list { margin: 0.45rem 0 0; display: flex; gap: 0.35rem; align-items: center; }
+/* The per-card action row under the meta line: the list picker and the rename
+   control, both muted so a long list of cards does not read as a wall of
+   controls. */
+.card-actions { margin: 0.45rem 0 0; display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.card-list { display: flex; gap: 0.35rem; align-items: center; }
 .card-list select {
   border: 1px solid transparent;
   border-radius: 6px;
@@ -279,6 +281,26 @@ button[type="submit"] {
 }
 .card-list select:hover,
 .card-list select:focus { border-color: var(--border); color: var(--text); outline: none; }
+
+/* The card's rename control reads as another quiet word in the row. Unlike the
+   list rename it expands in place rather than floating: the card already has
+   the width a long title needs, and nothing below it to cover. Clicking the
+   summary again closes without saving. */
+.rename summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.rename summary::-webkit-details-marker { display: none; }
+.rename summary:hover { color: var(--accent); }
+.rename[open] summary { color: var(--accent); }
+.rename[open] { flex-basis: 100%; }
+.rename form { display: flex; gap: 0.35rem; margin: 0.45rem 0 0; }
+.rename input { flex: 1; max-width: 22rem; padding: 0.3rem 0.6rem; font-size: 0.875rem; }
+.rename button[type="submit"] { padding: 0.3rem 0.75rem; font-size: 0.875rem; }
 
 /* app.js submits the select on change; the button is the no-script fallback. */
 .js .no-js { display: none; }

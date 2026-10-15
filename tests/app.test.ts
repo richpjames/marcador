@@ -189,6 +189,71 @@ describe("the list page", () => {
   });
 });
 
+describe("renaming a link", () => {
+  test("retitles through the form post and returns to the view you were on", async () => {
+    const { link } = store.save("https://example.com/mislabelled");
+    store.markReady(link.id, { title: "Scraped junk", description: null, siteName: null, imageUrl: null });
+    const cookie = await signIn();
+
+    const response = await app.request(`/links/${link.id}/title`, {
+      method: "POST",
+      headers: {
+        ...BROWSER,
+        cookie,
+        "content-type": "application/x-www-form-urlencoded",
+        referer: "https://marcador.example/?q=mislabelled",
+      },
+      body: new URLSearchParams({ title: "The good title" }),
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/?q=mislabelled");
+    expect(store.get(link.id)!.title).toBe("The good title");
+  });
+
+  test("the editor arrives prefilled with the current title", async () => {
+    const { link } = store.save("https://example.com/prefill");
+    store.markReady(link.id, { title: "Current title", description: null, siteName: null, imageUrl: null });
+    const cookie = await signIn();
+
+    const body = await (await app.request("/", { headers: { ...BROWSER, cookie } })).text();
+
+    expect(body).toContain(`value="Current title"`);
+    expect(body).toContain(`/links/${link.id}/title`);
+  });
+
+  test("a blank title reverts a link to showing its URL", async () => {
+    const { link } = store.save("https://example.com/revert");
+    store.markReady(link.id, { title: "Old title", description: null, siteName: null, imageUrl: null });
+    const cookie = await signIn();
+
+    await app.request(`/links/${link.id}/title`, {
+      method: "POST",
+      headers: { ...BROWSER, cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ title: "" }),
+    });
+
+    expect(store.get(link.id)!.title).toBeNull();
+
+    const body = await (await app.request("/", { headers: { ...BROWSER, cookie } })).text();
+    expect(body).toContain("example.com/revert");
+  });
+
+  test("a renamed title turns up in search", async () => {
+    const { link } = store.save("https://example.com/needle");
+    const cookie = await signIn();
+
+    await app.request(`/links/${link.id}/title`, {
+      method: "POST",
+      headers: { ...BROWSER, cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ title: "Haystack inspection guide" }),
+    });
+
+    const body = await (await app.request("/?q=haystack", { headers: { ...BROWSER, cookie } })).text();
+    expect(body).toContain("Haystack inspection guide");
+  });
+});
+
 describe("lists", () => {
   test("makes a list from the nav form and shows it as a chip", async () => {
     const cookie = await signIn();

@@ -193,7 +193,10 @@ function card(link: Link, lists: ListWithCount[]): Html {
           </time>
         </p>
 
-        ${picker(link, lists)}
+        <div class="card-actions">
+          ${picker(link, lists)}
+          ${rename(link)}
+        </div>
       </div>
 
       <form class="delete" action="/links/${link.id}/delete" method="post">
@@ -225,6 +228,32 @@ function picker(link: Link, lists: ListWithCount[]): Html {
       </select>
       <button type="submit" class="no-js">Move</button>
     </form>
+  `;
+}
+
+/**
+ * Rename control on each card. A native `<details>` like the list rename, so
+ * the editor opens and submits with no JavaScript at all; `data-autofocus`
+ * hands focus-on-open and Escape-to-cancel to the one shared handler in app.js.
+ * Unlike a list, a link has an automatic title to fall back on, so clearing
+ * the field is allowed: a blank submit reverts the card to its URL.
+ */
+function rename(link: Link): Html {
+  return html`
+    <details class="rename" data-autofocus>
+      <summary aria-label="Rename ${link.title ?? link.url}">Rename</summary>
+      <form action="/links/${link.id}/title" method="post">
+        <input
+          type="text"
+          name="title"
+          value="${link.title ?? ""}"
+          maxlength="300"
+          autocomplete="off"
+          aria-label="Title for ${link.title ?? link.url}"
+        />
+        <button type="submit">Save</button>
+      </form>
+    </details>
   `;
 }
 

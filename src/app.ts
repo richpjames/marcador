@@ -176,6 +176,14 @@ export function createApp({ store, enricher, filesDir }: AppOptions) {
     return c.redirect(backTo(c));
   });
 
+  /** Retitles a link. A blank value reverts to the automatic title. */
+  app.post("/links/:id/title", async (c) => {
+    const form = await c.req.parseBody();
+
+    store.rename(Number(c.req.param("id")), String(form.title ?? ""));
+    return c.redirect(backTo(c));
+  });
+
   /** Browser form post. Redirects back to the list. */
   app.post("/links", async (c) => {
     const form = await c.req.parseBody();

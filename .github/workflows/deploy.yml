@@ -1,0 +1,35 @@
+# Deploys by POSTing to the deploy webhook Coolify shows for the marcador
+# resource — the same thing the Redeploy button does, triggered automatically
+# when main moves.
+#
+# A GitHub repo webhook pointed at Coolify would be simpler, but GitHub cannot
+# filter a webhook by branch, so every push to every feature branch would
+# rebuild and restart the container. The branch filter here lives in the `on:`
+# block instead, and the webhook URL stays in an Actions secret rather than a
+# public repo setting.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  coolify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify deploy
+        env:
+          COOLIFY_DEPLOY_WEBHOOK_URL: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$COOLIFY_DEPLOY_WEBHOOK_URL" ]; then
+            echo "COOLIFY_DEPLOY_WEBHOOK_URL is not set — add the resource's"
+            echo "Deploy Webhook URL (Coolify → marcador → Webhook) as an"
+            echo "Actions secret and re-run."
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --max-time 60 \
+            -X POST "$COOLIFY_DEPLOY_WEBHOOK_URL" \
+            -H "content-type: application/json" \
+            -d '{}'

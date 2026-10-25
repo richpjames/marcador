@@ -85,6 +85,9 @@ bun run typecheck
 4. Set the domain, and let Coolify terminate TLS. The session cookie marks
    itself `Secure` when it sees `X-Forwarded-Proto: https`, so this matters.
 5. Health check is `GET /healthz`, already declared in the Dockerfile.
+6. Pushes to `main` deploy themselves. Copy the resource's **Deploy Webhook
+   URL** from Coolify and store it as the `COOLIFY_DEPLOY_WEBHOOK_URL` Actions
+   secret; `.github/workflows/deploy.yml` does the rest.
 
 The `marcador-data` volume holds one SQLite file. Backing that file up is the
 entire backup story.

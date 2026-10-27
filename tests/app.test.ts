@@ -189,6 +189,68 @@ describe("the list page", () => {
   });
 });
 
+describe("saving from the add form", () => {
+  test("a new list name makes the list and files the link under it", async () => {
+    const cookie = await signIn();
+
+    const response = await saveFromForm(cookie, "https://example.com/recipe", "Recipes");
+
+    expect(response.status).toBe(302);
+    const recipes = store.allLists().find((list) => list.name === "Recipes");
+    expect(recipes?.count).toBe(1);
+    expect(store.list()[0]!.listId).toBe(recipes!.id);
+  });
+
+  test("an existing name files there rather than making a duplicate", async () => {
+    const cookie = await signIn();
+    const tech = store.createList("Tech");
+
+    await saveFromForm(cookie, "https://example.com/rust", " Tech ");
+
+    expect(store.allLists()).toHaveLength(1);
+    expect(store.list()[0]!.listId).toBe(tech.id);
+  });
+
+  test("a blank list field leaves the link unfiled", async () => {
+    const cookie = await signIn();
+
+    await saveFromForm(cookie, "https://example.com/bare", "");
+
+    expect(store.list()[0]!.listId).toBeNull();
+  });
+
+  test("returns to the view you were on, not the top of All", async () => {
+    const cookie = await signIn();
+    const tech = store.createList("Tech");
+
+    const response = await app.request("/links", {
+      method: "POST",
+      headers: {
+        ...BROWSER,
+        cookie,
+        "content-type": "application/x-www-form-urlencoded",
+        referer: `https://marcador.example/?list=${tech.id}`,
+      },
+      body: new URLSearchParams({ url: "https://example.com/rust", list: "Tech" }),
+    });
+
+    expect(response.headers.get("location")).toBe(`/?list=${tech.id}`);
+  });
+
+  test("offers the existing names and prefills the list being viewed", async () => {
+    const cookie = await signIn();
+    const tech = store.createList("Tech");
+
+    const body = await (
+      await app.request(`/?list=${tech.id}`, { headers: { ...BROWSER, cookie } })
+    ).text();
+
+    expect(body).toContain('<datalist id="list-names">');
+    expect(body).toContain('<option value="Tech">');
+    expect(body).toContain('value="Tech"');
+  });
+});
+
 describe("renaming a link", () => {
   test("retitles through the form post and returns to the view you were on", async () => {
     const { link } = store.save("https://example.com/mislabelled");
@@ -469,5 +531,14 @@ function share(url: string, listId?: number) {
     method: "POST",
     headers: { ...BEARER, "content-type": "application/json" },
     body: JSON.stringify(listId === undefined ? { url } : { url, listId }),
+  });
+}
+
+/** The web add form's post, the way the browser sends it. */
+function saveFromForm(cookie: string, url: string, list: string) {
+  return app.request("/links", {
+    method: "POST",
+    headers: { ...BROWSER, cookie, "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ url, list }),
   });
 }

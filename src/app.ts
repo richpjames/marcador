@@ -184,12 +184,23 @@ export function createApp({ store, enricher, filesDir }: AppOptions) {
     return c.redirect(backTo(c));
   });
 
-  /** Browser form post. Redirects back to the list. */
+  /**
+   * Browser form post. The optional `list` field carries a *name* rather than
+   * an id: `createList` is idempotent by name, so an existing name files the
+   * link there and a new one makes the list first — blank, the default, saves
+   * it unfiled. Redirects back to the view the form was on, so saving while
+   * filtered to a list keeps you there to see it land.
+   */
   app.post("/links", async (c) => {
     const form = await c.req.parseBody();
-    const result = saveAndEnqueue(String(form.url ?? ""));
+    const name = String(form.list ?? "").trim();
+    const listId = name ? store.createList(name).id : null;
 
-    return c.redirect(result.ok ? "/" : `/?error=${encodeURIComponent(result.error)}`);
+    const result = saveAndEnqueue(String(form.url ?? ""), listId);
+
+    return c.redirect(
+      result.ok ? backTo(c) : `/?error=${encodeURIComponent(result.error)}`,
+    );
   });
 
   /**

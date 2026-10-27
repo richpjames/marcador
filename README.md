@@ -12,6 +12,7 @@ sentence written by Mistral.
 ## What it does
 
 - **Save a link** from the web UI, the share sheet, or `POST /api/links`
+- **File links into lists** — name the list in the add form as you save (a new name makes the list), or file a card later
 - **Describe it** — Mistral reads the page and writes one sentence
 - **Show the page's image**, scraped from its OG tags
 - **Full-text search** across titles, descriptions and URLs (SQLite FTS5)
@@ -63,7 +64,7 @@ title and image; the description falls back to whatever the page says about
 itself.
 
 ```sh
-bun test          # 38 tests, no network
+bun test          # 124 tests, no network
 bun run typecheck
 ```
 

@@ -32,6 +32,17 @@ export function listPage({
         autocomplete="off"
         aria-label="URL to save"
       />
+      <input
+        type="text"
+        name="list"
+        list="list-names"
+        value="${activeList?.name ?? ""}"
+        placeholder="List"
+        maxlength="40"
+        autocomplete="off"
+        aria-label="List to file the link under"
+      />
+      ${listNames(lists)}
       <button type="submit">Save</button>
     </form>
 
@@ -56,6 +67,22 @@ export function listPage({
     ${items.length === 0
       ? empty(query, activeList)
       : html`<ul class="links">${items.map((item) => card(item, lists))}</ul>`}
+  `;
+}
+
+/**
+ * The existing list names behind the add form's list field, as a `<datalist>`:
+ * the browser offers them while leaving a typed name it does not know free to
+ * become a list of its own. Native HTML, so picking works with scripting off
+ * like everything else on the page.
+ */
+function listNames(lists: ListWithCount[]): Html {
+  if (lists.length === 0) return html``;
+
+  return html`
+    <datalist id="list-names">
+      ${lists.map((list) => html`<option value="${list.name}"></option>`)}
+    </datalist>
   `;
 }
 

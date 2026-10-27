@@ -91,6 +91,9 @@ button[type="submit"] {
 
 .add { display: flex; gap: 0.5rem; margin: 1rem 0 1.5rem; }
 .add input { flex: 1; }
+/* The URL is the point of the row; the list name is a short aside, so it takes
+   a fixed share rather than an equal one and the URL field gets the rest. */
+.add input[name="list"] { flex: 0 1 11rem; }
 
 .banner { padding: 0.6rem 0.8rem; border-radius: var(--radius); background: var(--surface); }
 .error { color: var(--danger); }

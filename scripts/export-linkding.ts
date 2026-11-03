@@ -2,13 +2,17 @@
 /**
  * Exports marcador's links into a linkding instance through its REST API.
  *
- * Lists become tags — linkding has no lists — and uploaded PDFs are left
- * behind on purpose, since linkding has nowhere to put a file. Links whose
- * enrichment failed (no title) are sent bare so linkding scrapes them itself.
+ * Lists become tags — linkding has no lists, and it turns spaces in tag
+ * names into dashes ("Deep Dives" arrives as Deep-Dives) — and uploaded
+ * PDFs are left behind on purpose, since linkding has nowhere to put a
+ * file. Links whose enrichment failed (no title) are sent bare so linkding
+ * scrapes them itself.
  *
  * Safe to re-run: linkding updates the existing bookmark when the URL is
- * already saved, so a second pass overwrites rather than duplicates. The
- * database is opened read-only; marcador itself is never written to.
+ * already saved, so a second pass overwrites rather than duplicates — it
+ * still answers 201 either way, so the summary below cannot tell the two
+ * apart. The database is opened read-only; marcador itself is never
+ * written to.
  *
  *   docker cp <marcador-container>:/data/marcador.db ./marcador.db
  *   bun scripts/export-linkding.ts --db ./marcador.db \
@@ -97,7 +101,9 @@ if (args["dry-run"]) {
 // --- Send ----------------------------------------------------------------
 
 const base = String(args.to).replace(/\/+$/, "");
-const stats = { created: 0, updated: 0, failed: 0 };
+// Real linkding answers 201 whether a POST created the bookmark or updated
+// an existing one, so a single saved count is the most this can honestly say.
+const stats = { saved: 0, failed: 0 };
 
 for (const row of links) {
   const body = JSON.stringify(payload(row));
@@ -119,22 +125,20 @@ for (const row of links) {
     continue;
   }
 
-  if (response.status === 201) stats.created += 1;
-  else if (response.ok) stats.updated += 1;
+  if (response.ok) stats.saved += 1;
   else {
     console.warn(`  failed ${row.url}: linkding answered ${response.status}`);
     stats.failed += 1;
   }
 
-  if ((stats.created + stats.updated + stats.failed) % 100 === 0) {
-    console.log(`  …${stats.created + stats.updated + stats.failed}`);
+  if ((stats.saved + stats.failed) % 100 === 0) {
+    console.log(`  …${stats.saved + stats.failed}`);
   }
 }
 
 console.log(
-  `\nSent ${stats.created + stats.updated} link(s) to ${base} ` +
-    `(${stats.created} created, ${stats.updated} updated, ${stats.failed} failed); ` +
-    `skipped ${skipped.length} PDF(s).`,
+  `\nSent ${stats.saved} link(s) to ${base} ` +
+    `(${stats.failed} failed); skipped ${skipped.length} PDF(s).`,
 );
 if (stats.failed > 0) process.exit(1);
 

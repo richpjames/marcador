@@ -11,8 +11,8 @@ import { openDatabase } from "../src/db.ts";
 
 const dbPath = join(import.meta.dir, `marcador-export-test-${process.pid}.db`);
 
-// A flaky URL linkding rejects, and an existing one it reports as updated —
-// the script must survive the first and count the second separately.
+// A flaky URL linkding rejects, and an existing one that answers 200 — any
+// 2xx counts as saved, since real linkding's status code is not meaningful.
 const FULL = { url: "https://example.com/full", title: "A full link", description: "One sentence." };
 const BARE = { url: "https://example.com/bare" };
 const EXISTING = { url: "https://example.com/exists" };
@@ -94,7 +94,7 @@ describe("export-linkding", () => {
     const [exitCode, stdout] = await Promise.all([proc.exited, new Response(proc.stdout).text()]);
 
     expect(exitCode).toBe(1); // the flaky link failed, so the export reports it
-    expect(stdout).toContain("(2 created, 1 updated, 1 failed)");
+    expect(stdout).toContain("(1 failed)");
     expect(stdout).toContain("skipped 1 PDF(s)");
 
     // The PDF never left marcador.

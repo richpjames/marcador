@@ -54,6 +54,8 @@ describe("export-linkding", () => {
   test("sends marcador's links to linkding, keeping dates, tags, and nothing else", async () => {
     const db = openDatabase(dbPath);
     db.run(`insert into lists (name, icon, created_at) values ('Reading', null, 1)`);
+    // A spaced name, to pin the slug every tag gets: deep-dives, not Deep-Dives.
+    db.run(`insert into lists (name, icon, created_at) values ('Deep Dives', null, 2)`);
     db.run(
       `insert into links (url, title, description, status, created_at, list_id, kind)
        values ('${FULL.url}', '${FULL.title}', '${FULL.description}', 'ready', 1700000000000, 1, 'link')`,
@@ -64,8 +66,8 @@ describe("export-linkding", () => {
        values ('${BARE.url}', 'failed', 1700000001000, 'link')`,
     );
     db.run(
-      `insert into links (url, status, created_at, kind)
-       values ('${EXISTING.url}', 'ready', 1700000002000, 'link')`,
+      `insert into links (url, status, created_at, list_id, kind)
+       values ('${EXISTING.url}', 'ready', 1700000002000, 2, 'link')`,
     );
     db.run(
       `insert into links (url, status, created_at, kind)
@@ -113,13 +115,20 @@ describe("export-linkding", () => {
       title: FULL.title,
       description: FULL.description,
       date_added: "2023-11-14T22:13:20.000Z",
-      tag_names: ["Reading"],
+      tag_names: ["reading"],
     });
 
     // Bare links carry only the date; linkding scrapes the rest itself.
     expect(received[1]!.body).toEqual({
       url: BARE.url,
       date_added: "2023-11-14T22:13:21.000Z",
+    });
+
+    // Spaced list names arrive slugified: deep-dives, not Deep-Dives.
+    expect(received[2]!.body).toEqual({
+      url: EXISTING.url,
+      date_added: "2023-11-14T22:13:22.000Z",
+      tag_names: ["deep-dives"],
     });
   });
 });

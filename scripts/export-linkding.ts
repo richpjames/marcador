@@ -2,11 +2,11 @@
 /**
  * Exports marcador's links into a linkding instance through its REST API.
  *
- * Lists become tags — linkding has no lists, and it turns spaces in tag
- * names into dashes ("Deep Dives" arrives as Deep-Dives) — and uploaded
- * PDFs are left behind on purpose, since linkding has nowhere to put a
- * file. Links whose enrichment failed (no title) are sent bare so linkding
- * scrapes them itself.
+ * Lists become tags — linkding has no lists — and uploaded PDFs are left
+ * behind on purpose, since linkding has nowhere to put a file. Tag names
+ * are slugified here ("Deep Dives" arrives as deep-dives), because linkding
+ * hyphenates spaces but keeps the case. Links whose enrichment failed (no
+ * title) are sent bare so linkding scrapes them itself.
  *
  * Safe to re-run: linkding updates the existing bookmark when the URL is
  * already saved, so a second pass overwrites rather than duplicates — it
@@ -68,6 +68,14 @@ const links = rows.filter((row) => row.kind !== "pdf");
 
 // --- Map ----------------------------------------------------------------
 
+/**
+ * "Deep Dives" → "deep-dives". linkding hyphenates spaces in tag names but
+ * keeps the case, so the slug is made here to keep tags uniform and lowercase.
+ */
+function tagFor(listName: string): string {
+  return listName.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
 // The date is the one field a re-scrape cannot recover, so it always travels
 // with the link. Title and description are sent only when marcador has one:
 // linkding scrapes the page itself to fill in whatever arrives empty.
@@ -78,7 +86,7 @@ function payload(row: Row): Record<string, unknown> {
   };
   if (row.title) body.title = row.title;
   if (row.description) body.description = row.description;
-  if (row.listName) body.tag_names = [row.listName];
+  if (row.listName) body.tag_names = [tagFor(row.listName)];
   return body;
 }
 
@@ -86,7 +94,7 @@ if (args["dry-run"]) {
   console.log("Dry run — nothing sent.\n");
   for (const row of links.slice(0, 10)) {
     console.log(`  ${row.title ?? row.url}`);
-    console.log(`    ${row.url} → tags: [${row.listName ?? ""}]`);
+    console.log(`    ${row.url} → tags: [${row.listName ? tagFor(row.listName) : ""}]`);
   }
   if (links.length > 10) console.log(`  … and ${links.length - 10} more`);
 
